@@ -1,0 +1,2297 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NextStep 仪表盘原型</title>
+<style>
+  /* ============================================================
+     PROTOTYPE — throwaway UI exploration for ticket 08.
+     Four variants of the NextStep dashboard, switchable via
+     ?variant=A|B|C|D and the floating prototype bar.
+     This file is NOT production code.
+     ============================================================ */
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    background-color: #e9e9ee;
+    background-image: radial-gradient(circle at 1px 1px, rgba(20, 20, 40, .055) 1px, transparent 0);
+    background-size: 22px 22px;
+    color: #17171b;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", sans-serif;
+    padding-bottom: 140px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button { font-family: inherit; cursor: pointer; }
+  button:focus-visible { outline: 2px solid #007aff; outline-offset: 2px; }
+
+  /* ---------------- page chrome ---------------- */
+
+  .proto-header {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 44px 24px 30px;
+  }
+
+  .badge {
+    display: inline-block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10px;
+    letter-spacing: .1em;
+    background: #141418;
+    color: #fff;
+    padding: 6px 9px;
+    border-radius: 5px;
+  }
+
+  .proto-header h1 {
+    font-size: clamp(26px, 3.6vw, 36px);
+    line-height: 1.12;
+    letter-spacing: -.035em;
+    margin: 18px 0 10px;
+    font-weight: 750;
+  }
+
+  .proto-question {
+    max-width: 800px;
+    font-size: 14px;
+    line-height: 1.65;
+    color: #4b4b55;
+    margin: 0;
+  }
+
+  .proto-meta {
+    margin-top: 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+    color: #85858e;
+    line-height: 1.5;
+  }
+
+  .proto-main {
+    display: grid;
+    grid-template-columns: 320px auto;
+    gap: 44px;
+    align-items: start;
+    justify-content: center;
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-top: 4px;
+  }
+
+  .panel-card {
+    background: #fff;
+    border: 1px solid rgba(20, 20, 40, .06);
+    border-radius: 16px;
+    padding: 14px;
+    box-shadow: 0 6px 22px rgba(20, 20, 40, .05);
+  }
+
+  .panel-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 9.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #8e8e96;
+    margin-bottom: 8px;
+  }
+
+  .variant-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 8px;
+    border-radius: 11px;
+    border: 1px solid transparent;
+    background: transparent;
+    text-align: left;
+    transition: background .12s ease, border-color .12s ease;
+  }
+
+  .variant-row:hover { background: #f5f5f8; }
+  .variant-row.on { background: #eef5ff; border-color: #b9d7ff; }
+
+  .vr-key {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: #ececf1;
+    display: grid;
+    place-items: center;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-weight: 700;
+    font-size: 12px;
+    color: #4a4a52;
+    flex: 0 0 auto;
+  }
+
+  .variant-row.on .vr-key { background: #007aff; color: #fff; }
+
+  .vr-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .vr-main b { font-size: 13px; letter-spacing: -.1px; }
+  .vr-main small { font-size: 11px; color: #8a8a92; }
+
+  .vr-check { color: #007aff; width: 16px; display: flex; }
+
+  .variant-detail .vd-key {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+    color: #007aff;
+    letter-spacing: .05em;
+  }
+
+  .variant-detail p {
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: #3c3c43;
+    margin: 8px 0 10px;
+  }
+
+  .vd-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+
+  .vd-tags span {
+    font-size: 10.5px;
+    background: #f1f1f5;
+    color: #4a4a52;
+    padding: 4px 7px;
+    border-radius: 6px;
+  }
+
+  .vd-tradeoff {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #eeeef2;
+    font-size: 11.5px;
+    color: #6c6c70;
+    line-height: 1.5;
+  }
+
+  .vd-tradeoff b { color: #b25000; font-weight: 650; }
+
+  .checklist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .checklist li {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #4b4b55;
+    padding-left: 18px;
+    position: relative;
+  }
+
+  .checklist li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 3px;
+    width: 9px;
+    height: 9px;
+    border: 1.5px solid #c3c3cc;
+    border-radius: 3px;
+  }
+
+  .howto { font-size: 11.5px; color: #5a5a63; line-height: 1.8; }
+  .howto b { color: #17171b; }
+
+  .howto kbd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10px;
+    background: #f1f1f5;
+    border: 1px solid #e0e0e6;
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 1px 4px;
+    margin-right: 2px;
+  }
+
+  .phone-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .phone-wrap { position: relative; }
+
+  .phone {
+    width: 413px;
+    height: 872px;
+    border-radius: 56px;
+    background: linear-gradient(145deg, #2b2b31, #0c0c0f 55%, #1d1d22);
+    padding: 10px;
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, .18),
+      0 30px 70px rgba(20, 20, 40, .28),
+      0 4px 14px rgba(20, 20, 40, .16);
+    will-change: transform;
+  }
+
+  .under-phone {
+    margin-top: 16px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10px;
+    color: #85858e;
+    text-align: center;
+    line-height: 1.7;
+  }
+
+  .param-readout {
+    color: #a3a3ab;
+    margin-top: 2px;
+    user-select: all;
+  }
+
+  /* ---------------- phone ---------------- */
+
+  .phone-screen {
+    --bg: #f2f2f7;
+    --card: #ffffff;
+    --ink: #1c1c1e;
+    --ink2: #3c3c43;
+    --muted: #8e8e93;
+    --hair: rgba(60, 60, 67, .16);
+    --blue: #007aff;
+
+    width: 393px;
+    height: 852px;
+    border-radius: 47px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    color: var(--ink);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .dynamic-island {
+    position: absolute;
+    top: 11px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 124px;
+    height: 35px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 8;
+    pointer-events: none;
+  }
+
+  .statusbar {
+    height: 54px;
+    flex: 0 0 54px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 0 26px 7px;
+    font-size: 14px;
+    font-weight: 650;
+    letter-spacing: -.2px;
+    position: relative;
+    z-index: 7;
+  }
+
+  .status-icons { display: flex; align-items: center; gap: 6px; color: #1c1c1e; }
+
+  .screen-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 24px;
+    scrollbar-width: none;
+    overscroll-behavior: contain;
+  }
+
+  .screen-content::-webkit-scrollbar { display: none; }
+
+  .tabbar {
+    flex: 0 0 74px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-around;
+    padding: 7px 8px 18px;
+    background: rgba(249, 249, 251, .96);
+    border-top: .5px solid var(--hair);
+    backdrop-filter: blur(14px);
+    position: relative;
+    z-index: 9;
+  }
+
+  .tab {
+    border: 0;
+    background: none;
+    color: #8e8e93;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-size: 9px;
+    font-weight: 500;
+    width: 72px;
+    padding: 2px 0;
+  }
+
+  .tab svg { width: 23px; height: 23px; }
+  .tab.on { color: var(--blue); }
+
+  .home-indicator {
+    position: absolute;
+    left: 50%;
+    bottom: 7px;
+    transform: translateX(-50%);
+    width: 134px;
+    height: 5px;
+    border-radius: 3px;
+    background: #1c1c1e;
+    opacity: .85;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .toast {
+    position: absolute;
+    left: 50%;
+    bottom: 92px;
+    transform: translateX(-50%) translateY(8px);
+    background: rgba(28, 28, 30, .93);
+    color: #fff;
+    font-size: 11px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease;
+    z-index: 20;
+    white-space: nowrap;
+  }
+
+  .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------------- phone: navigation ---------------- */
+
+  .nav-large { padding: 8px 20px 0; }
+
+  .nav-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 40px;
+  }
+
+  .nav-row h1 {
+    font-size: 34px;
+    line-height: 41px;
+    letter-spacing: -.7px;
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .nav-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 0;
+    background: #e4e4ea;
+    color: var(--ink);
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    padding: 0;
+  }
+
+  .nav-compact {
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    border-bottom: .5px solid var(--hair);
+    background: rgba(242, 242, 247, .94);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .nav-compact h1 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -.2px; }
+
+  .nav-back, .nav-spacer { width: 40px; height: 40px; display: grid; place-items: center; }
+
+  .nav-back {
+    background: transparent;
+    border: 0;
+    color: var(--blue);
+    padding: 0;
+  }
+
+  .nav-compact .icon-btn { background: transparent; color: var(--blue); }
+
+  /* ---------------- phone: sections ---------------- */
+
+  .section { padding: 18px 20px 0; }
+
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .section-head h2 {
+    font-size: 17px;
+    font-weight: 650;
+    margin: 0;
+    letter-spacing: -.2px;
+  }
+
+  .section-head .link {
+    background: none;
+    border: 0;
+    color: var(--blue);
+    font-size: 13px;
+    padding: 0;
+    white-space: nowrap;
+  }
+
+  .caption { font-size: 11px; color: var(--muted); }
+
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 .5px 0 rgba(0, 0, 0, .04);
+  }
+
+  .footnote {
+    padding: 20px 20px 8px;
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .empty-inline {
+    padding: 18px 14px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* ---------------- phone: A agenda ---------------- */
+
+  .agenda-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: transparent;
+    border: 0;
+    border-bottom: .5px solid var(--hair);
+    text-align: left;
+  }
+
+  .agenda-row:last-child { border-bottom: 0; }
+
+  .agenda-date {
+    flex: 0 0 54px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .agenda-date b { font-size: 13px; color: var(--ink); font-weight: 650; }
+  .agenda-date span { font-size: 10px; color: var(--muted); }
+  .agenda-date.is-urgent b { color: #ff3b30; }
+
+  .agenda-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+
+  .agenda-title {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .agenda-sub {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .agenda-flag { color: #b0b0b8; display: flex; flex: 0 0 auto; }
+  .agenda-row > svg { color: #c7c7cc; flex: 0 0 auto; }
+
+  .chip-stats { display: flex; gap: 8px; }
+
+  .stat-chip {
+    flex: 1;
+    background: #fff;
+    border: 0;
+    border-radius: 14px;
+    padding: 12px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    box-shadow: 0 .5px 0 rgba(0, 0, 0, .04);
+    text-align: left;
+  }
+
+  .stat-chip b { font-size: 22px; letter-spacing: -.5px; line-height: 1.1; }
+  .stat-chip span { font-size: 10px; color: var(--muted); white-space: nowrap; }
+  .stat-chip.warn b { color: #ff9500; }
+
+  /* ---------------- phone: app rows / pills ---------------- */
+
+  .app-rows { display: flex; flex-direction: column; }
+
+  .app-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    background: transparent;
+    border: 0;
+    border-bottom: .5px solid var(--hair);
+    text-align: left;
+  }
+
+  .app-row:last-child { border-bottom: 0; }
+
+  .status-rail { width: 3px; align-self: stretch; border-radius: 2px; flex: 0 0 3px; }
+
+  .app-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+
+  .app-company { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-role { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .app-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+    flex: 0 0 auto;
+  }
+
+  .side-sub { display: flex; align-items: center; }
+
+  .app-row > svg { color: #c7c7cc; flex: 0 0 auto; }
+
+  .updated { font-size: 9.5px; color: var(--muted); white-space: nowrap; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9.5px;
+    line-height: 1;
+    font-weight: 650;
+    padding: 3px 6px;
+    border-radius: 999px;
+    color: var(--c);
+    background: color-mix(in srgb, var(--c) 12%, transparent);
+    white-space: nowrap;
+  }
+
+  .pill i { width: 5px; height: 5px; border-radius: 50%; background: var(--c); flex: 0 0 auto; }
+
+  .deadline-chip {
+    display: inline-flex;
+    align-items: center;
+    font-size: 9.5px;
+    line-height: 1;
+    font-weight: 650;
+    padding: 3px 6px;
+    border-radius: 6px;
+    background: #f2f2f7;
+    color: #6c6c70;
+    white-space: nowrap;
+  }
+
+  .deadline-chip.u-red { background: #ffeceb; color: #d70015; }
+  .deadline-chip.u-orange { background: #fff3e0; color: #b25000; }
+  .deadline-chip.u-plain { background: #f2f2f7; color: #6c6c70; }
+
+  /* ---------------- phone: B banner / board ---------------- */
+
+  .banner {
+    margin: 12px 20px 0;
+    width: calc(100% - 40px);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    background: #fff7e8;
+    border: 1px solid #ffe1ad;
+    border-radius: 14px;
+    text-align: left;
+    color: #7a4a00;
+  }
+
+  .banner-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #ffedd0;
+    display: grid;
+    place-items: center;
+    color: #b25000;
+    flex: 0 0 auto;
+  }
+
+  .banner-text { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .banner-text b { font-size: 13px; }
+  .banner-text small { font-size: 10.5px; color: #9a6a20; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .banner > svg { color: #b25000; flex: 0 0 auto; }
+
+  .board {
+    display: flex;
+    gap: 10px;
+    padding: 14px 20px 0;
+    overflow-x: auto;
+    align-items: flex-start;
+    scrollbar-width: none;
+  }
+
+  .board::-webkit-scrollbar { display: none; }
+
+  .board-col {
+    flex: 0 0 156px;
+    background: #e9e9ee;
+    border-radius: 14px;
+    padding: 8px;
+  }
+
+  .board-col-head {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: transparent;
+    border: 0;
+    padding: 4px 4px 8px;
+    font-size: 12px;
+    font-weight: 650;
+    color: #3c3c43;
+  }
+
+  .board-col-head span { display: flex; align-items: center; gap: 5px; }
+
+  .board-col-head b {
+    font-size: 10px;
+    font-weight: 650;
+    color: var(--muted);
+    background: #dcdce2;
+    border-radius: 999px;
+    padding: 1px 6px;
+  }
+
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+
+  .board-col-body { display: flex; flex-direction: column; gap: 6px; }
+
+  .board-card {
+    background: #fff;
+    border: 0;
+    border-radius: 10px;
+    padding: 9px;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+  }
+
+  .board-company { font-size: 12px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .board-role { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .board-meta { margin-top: 2px; display: flex; }
+
+  .board-hint { text-align: center; font-size: 10px; color: var(--muted); padding: 10px 20px 0; }
+
+  /* ---------------- phone: C stats / funnel ---------------- */
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  .stat-tile {
+    background: #fff;
+    border: 0;
+    border-radius: 14px;
+    padding: 12px;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    box-shadow: 0 .5px 0 rgba(0, 0, 0, .04);
+  }
+
+  .stat-tile span { font-size: 10.5px; color: var(--muted); }
+  .stat-tile b { font-size: 26px; letter-spacing: -.8px; line-height: 1.1; }
+  .stat-tile.warn b { color: #ff9500; }
+
+  .funnel { padding: 12px 14px 10px; }
+
+  .funnel-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    border: 0;
+    padding: 5px 0;
+    text-align: left;
+  }
+
+  .funnel-label {
+    flex: 0 0 64px;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 10.5px;
+    color: var(--ink2);
+  }
+
+  .funnel-label b { font-size: 12px; }
+
+  .funnel-track { flex: 1; height: 12px; background: #f0f0f4; border-radius: 999px; overflow: hidden; }
+  .funnel-fill { display: block; height: 100%; border-radius: 999px; }
+  .funnel-pct { flex: 0 0 30px; text-align: right; font-size: 9.5px; color: var(--muted); }
+
+  .funnel-conv { display: flex; padding-left: 72px; margin: -1px 0; }
+  .funnel-conv span { font-size: 8.5px; color: #b0b0b8; }
+
+  .mini-note {
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: .5px solid var(--hair);
+    font-size: 8.5px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
+  .dist-card { padding: 14px; }
+
+  .stackbar {
+    display: flex;
+    gap: 2px;
+    height: 14px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: #f0f0f4;
+  }
+
+  .stackbar span { display: block; height: 100%; }
+
+  .dist-legend {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 10px;
+    margin-top: 12px;
+  }
+
+  .dist-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: 0;
+    padding: 2px 0;
+    font-size: 10.5px;
+    color: var(--ink2);
+    text-align: left;
+  }
+
+  .dist-item i { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+  .dist-item b { margin-left: auto; font-size: 10.5px; color: var(--muted); }
+
+  .deadline-list { display: flex; flex-direction: column; }
+
+  .deadline-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 0;
+    border-bottom: .5px solid var(--hair);
+    background: transparent;
+    text-align: left;
+  }
+
+  .deadline-row:last-child { border-bottom: 0; }
+
+  .deadline-date { flex: 0 0 46px; font-size: 10.5px; font-weight: 650; color: var(--muted); }
+  .deadline-date.u-red { color: #ff3b30; }
+  .deadline-date.u-orange { color: #b25000; }
+
+  .deadline-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .deadline-row-main b { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .deadline-row-main span { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .deadline-row > svg { color: #c7c7cc; flex: 0 0 auto; }
+
+  /* ---------------- phone: D list ---------------- */
+
+  .summary-strip {
+    display: flex;
+    gap: 14px;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .summary-strip b { color: var(--ink); font-size: 16px; margin-right: 2px; letter-spacing: -.3px; }
+
+  .d-filters {
+    display: flex;
+    gap: 7px;
+    padding: 14px 20px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .d-filters::-webkit-scrollbar { display: none; }
+
+  .d-chip {
+    flex: 0 0 auto;
+    border: 1px solid #dcdce2;
+    background: #fff;
+    color: var(--ink2);
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 10.5px;
+    font-weight: 600;
+  }
+
+  .d-chip.on { background: #1c1c1e; border-color: #1c1c1e; color: #fff; }
+
+  .d-sort {
+    display: flex;
+    justify-content: space-between;
+    padding: 9px 20px 6px;
+    font-size: 9.5px;
+    color: var(--muted);
+  }
+
+  .d-list { margin: 0 20px; }
+
+  /* ---------------- phone: empty states ---------------- */
+
+  .empty-hero {
+    padding: 42px 24px 20px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .empty-hero.compact { padding-top: 28px; }
+
+  .empty-art {
+    width: 84px;
+    height: 84px;
+    border-radius: 28px;
+    background: linear-gradient(135deg, #e8f1ff, #f5f0ff);
+    color: var(--blue);
+    display: grid;
+    place-items: center;
+    margin-bottom: 18px;
+  }
+
+  .empty-hero.compact .empty-art { width: 68px; height: 68px; border-radius: 22px; margin-bottom: 14px; }
+
+  .empty-hero h2 { font-size: 23px; letter-spacing: -.45px; margin: 0 0 8px; }
+  .empty-hero.compact h2 { font-size: 20px; }
+
+  .empty-hero p {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--muted);
+    margin: 0 0 20px;
+    max-width: 260px;
+  }
+
+  .empty-hero .btn-primary,
+  .empty-hero .btn-secondary { width: 100%; max-width: 280px; }
+  .empty-hero .btn-secondary { margin-top: 8px; }
+
+  .btn-primary {
+    border: 0;
+    border-radius: 12px;
+    background: var(--blue);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 650;
+    padding: 12px;
+  }
+
+  .btn-secondary {
+    border: 0;
+    border-radius: 12px;
+    background: #e9e9ef;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 600;
+    padding: 12px;
+  }
+
+  .empty-board-hero { padding: 10px 20px 18px; }
+  .empty-board-hero h2 { font-size: 22px; letter-spacing: -.45px; margin: 0 0 6px; }
+  .empty-board-hero p { font-size: 12.5px; color: var(--muted); margin: 0 0 14px; line-height: 1.5; max-width: 290px; }
+  .empty-board-hero .btn-primary,
+  .empty-board-hero .btn-secondary { display: block; width: 100%; max-width: 280px; }
+  .empty-board-hero .btn-secondary { margin-top: 8px; }
+
+  .ghost-board { display: flex; gap: 10px; padding: 0 20px; overflow: hidden; opacity: .55; }
+  .ghost-col { flex: 0 0 120px; background: #e9e9ee; border-radius: 14px; padding: 8px; }
+  .ghost-head { font-size: 11px; font-weight: 650; color: #8e8e93; padding: 4px; }
+  .ghost-card {
+    height: 56px;
+    background: #fff;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .03);
+  }
+
+  .empty-data { padding: 20px; }
+
+  .ghost-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 24px;
+    opacity: .55;
+  }
+
+  .ghost-stats span { height: 68px; border-radius: 14px; background: #fff; border: 1px dashed #d8d8df; }
+
+  .empty-data h2 { font-size: 22px; letter-spacing: -.45px; margin: 0 0 8px; }
+  .empty-data p { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin: 0 0 18px; max-width: 290px; }
+  .empty-data .btn-primary,
+  .empty-data .btn-secondary { display: block; width: 100%; max-width: 280px; margin: 0 0 8px; }
+
+  .ghost-list { padding: 0 20px; opacity: .55; }
+  .ghost-row {
+    height: 58px;
+    background: #fff;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    border: 1px dashed #d8d8df;
+  }
+
+  /* ---------------- phone: stubs ---------------- */
+
+  .stub-note {
+    margin: 12px 20px 0;
+    padding: 6px 8px;
+    border: 1px dashed #c9c9d2;
+    border-radius: 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 8.5px;
+    color: #8e8e93;
+    text-align: center;
+    letter-spacing: .02em;
+  }
+
+  .list-filterbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px 8px;
+  }
+
+  .filter-chip {
+    font-size: 10.5px;
+    font-weight: 650;
+    background: #e4e4ea;
+    padding: 5px 9px;
+    border-radius: 999px;
+    color: var(--ink2);
+  }
+
+  .filter-chip b { color: var(--muted); }
+
+  .list-page-rows { margin: 0 20px; }
+
+  .detail-head { padding: 20px 20px 14px; }
+
+  .detail-company { font-size: 24px; font-weight: 700; letter-spacing: -.5px; }
+  .detail-role { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .detail-tags { display: flex; gap: 6px; margin-top: 10px; align-items: center; }
+
+  .detail-card { margin: 0 20px; padding: 2px 14px; }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 11px 0;
+    border-bottom: .5px solid var(--hair);
+    font-size: 12px;
+  }
+
+  .detail-row:last-child { border-bottom: 0; }
+  .detail-row span { color: var(--muted); }
+  .detail-row b { font-weight: 600; text-align: right; }
+
+  .status-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .status-chip {
+    font-size: 10.5px;
+    padding: 5px 8px;
+    border-radius: 8px;
+    background: #fff;
+    color: #6c6c70;
+    border: 1px solid #e4e4ea;
+  }
+
+  .status-chip.on {
+    color: var(--c);
+    border-color: color-mix(in srgb, var(--c) 40%, white);
+    background: color-mix(in srgb, var(--c) 10%, white);
+    font-weight: 650;
+  }
+
+  .detail-note { margin: 16px 20px 0; padding: 12px 14px; }
+  .detail-note span { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .detail-note p { margin: 6px 0 0; font-size: 11.5px; color: var(--ink2); line-height: 1.5; }
+
+  .placeholder {
+    padding: 90px 30px;
+    text-align: center;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .placeholder h2 { font-size: 20px; color: var(--ink); margin: 8px 0 0; }
+  .placeholder p { font-size: 12.5px; line-height: 1.5; margin: 0; max-width: 250px; }
+
+  /* ---------------- prototype switcher ---------------- */
+
+  .switcher {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #111115;
+    color: #fff;
+    border-radius: 999px;
+    padding: 7px 9px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .3), inset 0 0 0 1px rgba(255, 255, 255, .08);
+    z-index: 100;
+    font-size: 12px;
+    max-width: calc(100vw - 20px);
+  }
+
+  .switcher .arrow {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 0;
+    background: rgba(255, 255, 255, .1);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    padding: 0;
+  }
+
+  .switcher .arrow:hover { background: rgba(255, 255, 255, .18); }
+
+  .switch-label {
+    min-width: 158px;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 4px;
+    white-space: nowrap;
+  }
+
+  .switch-label b {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    background: #fff;
+    color: #111;
+    border-radius: 5px;
+    padding: 2px 6px;
+  }
+
+  .switch-label span { font-size: 12px; color: rgba(255, 255, 255, .85); }
+
+  .switch-divider { width: 1px; height: 22px; background: rgba(255, 255, 255, .16); margin: 0 3px; flex: 0 0 auto; }
+
+  .data-seg { display: flex; background: rgba(255, 255, 255, .08); border-radius: 999px; padding: 3px; flex: 0 0 auto; }
+
+  .data-seg button {
+    border: 0;
+    background: transparent;
+    color: rgba(255, 255, 255, .6);
+    padding: 5px 9px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    white-space: nowrap;
+  }
+
+  .data-seg button.on { background: #fff; color: #111; font-weight: 650; }
+
+  @media (max-width: 1080px) {
+    .proto-main {
+      grid-template-columns: minmax(0, 1fr);
+      max-width: 520px;
+      gap: 28px;
+    }
+    .side-panel { order: 2; }
+    .phone-column { order: 1; }
+  }
+
+  @media (max-width: 640px) {
+    .proto-header { padding: 30px 16px 22px; }
+    .proto-main { padding: 0 16px; }
+    .switcher {
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      transform: none;
+      max-width: none;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      border-radius: 20px;
+      row-gap: 6px;
+    }
+    .switch-label { min-width: 0; flex: 1 1 auto; }
+    .switch-divider { display: none; }
+    .data-seg { flex: 1 1 100%; justify-content: center; }
+    body { padding-bottom: 190px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="proto-header">
+  <div class="badge">PROTOTYPE · 不是最终设计</div>
+  <h1>NextStep 仪表盘：首屏信息结构</h1>
+  <p class="proto-question">
+    v1 仪表盘到底回答什么问题、长什么样？四个变体在「空状态 / 8 条 / 20 条申请」三种数据下，
+    对比首屏信息密度、临近截止提醒、状态分布与漏斗，从仪表盘进入申请列表/详情的路径，
+    以及仪表盘该独立成 tab，还是并进申请页。
+  </p>
+  <div class="proto-meta">
+    虚构数据 · 状态枚举暂定：想投 / 已投 / 笔试 / 面试 / Offer / 已拒 / 已撤 · 最终以 ticket 03 的领域模型为准
+  </div>
+</header>
+
+<main class="proto-main">
+  <aside class="side-panel">
+    <div class="panel-card">
+      <div class="panel-label">本轮变体 · 4 个结构</div>
+      <div id="variantList"></div>
+    </div>
+
+    <div class="panel-card">
+      <div class="panel-label">当前变体</div>
+      <div class="variant-detail" id="variantDetail"></div>
+    </div>
+
+    <div class="panel-card">
+      <div class="panel-label">看什么</div>
+      <ul class="checklist">
+        <li>空状态是否让人愿意继续？</li>
+        <li>20 条时首屏还回答得了问题吗？</li>
+        <li>截止提醒有没有出现在第一屏？</li>
+        <li>状态分布和漏斗，哪个值得进 P0？</li>
+        <li>去列表 / 详情的入口是否一眼可见？</li>
+      </ul>
+    </div>
+
+    <div class="panel-card">
+      <div class="panel-label">怎么玩</div>
+      <div class="howto">
+        <div><kbd>←</kbd><kbd>→</kbd> 切换变体</div>
+        <div>底栏切换 <b>空 / 8 条 / 20 条</b></div>
+        <div>点卡片、统计块、列标题看跳转桩</div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="phone-column">
+    <div class="phone-wrap" id="phoneWrap">
+      <div class="phone" id="phone">
+        <div class="phone-screen">
+          <div class="dynamic-island"></div>
+
+          <div class="statusbar" aria-hidden="true">
+            <span>9:41</span>
+            <span class="status-icons">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg>
+              <svg width="15" height="11" viewBox="0 0 15 11" fill="currentColor"><path d="M7.5 10.5l2.2-2.7a3.4 3.4 0 00-4.4 0l2.2 2.7z"/><path d="M7.5 4.2c1.6 0 3.1.6 4.2 1.7l1.4-1.7A9.2 9.2 0 007.5 2 9.2 9.2 0 001.9 4.2l1.4 1.7a6.1 6.1 0 014.2-1.7z"/></svg>
+              <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x=".5" y=".5" width="21" height="11" rx="3.5" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="18" height="8" rx="2" fill="currentColor"/><path d="M23 4v4c1-.3 1.5-1 1.5-2S24 4.3 23 4z" fill="currentColor" opacity=".5"/></svg>
+            </span>
+          </div>
+
+          <div class="screen-content" id="screen"></div>
+
+          <nav class="tabbar" id="tabbar" aria-label="底部导航"></nav>
+          <div class="home-indicator"></div>
+          <div class="toast" id="toast" role="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="under-phone">
+      <div>← / → 切换变体 · 数据状态在底栏</div>
+      <div class="param-readout" id="paramReadout">?variant=A&amp;data=few</div>
+    </div>
+  </div>
+</main>
+
+<div class="switcher" id="switcher" role="group" aria-label="原型变体切换器">
+  <button class="arrow" id="prev" aria-label="上一个变体">←</button>
+  <div class="switch-label"><b id="vkey">A</b><span id="vname">行动优先</span></div>
+  <button class="arrow" id="next" aria-label="下一个变体">→</button>
+  <div class="switch-divider"></div>
+  <div class="data-seg" role="group" aria-label="数据状态">
+    <button data-data="empty">空状态</button>
+    <button data-data="few">8 条</button>
+    <button data-data="many">20 条</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ============================================================
+  // Data — fictional companies, tentative status enum
+  // ============================================================
+
+  const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  const TODAY = new Date();
+  TODAY.setHours(0, 0, 0, 0);
+
+  const STATUSES = [
+    { key: 'wishlist',  label: '想投',  color: '#8e8e93' },
+    { key: 'applied',   label: '已投',  color: '#007aff' },
+    { key: 'oa',        label: '笔试',  color: '#ff9500' },
+    { key: 'interview', label: '面试',  color: '#af52de' },
+    { key: 'offer',     label: 'Offer', color: '#34c759' },
+    { key: 'rejected',  label: '已拒',  color: '#ff3b30' },
+    { key: 'withdrawn', label: '已撤',  color: '#a2845e' }
+  ];
+  const STATUS = Object.fromEntries(STATUSES.map(s => [s.key, s]));
+
+  const APPS = [
+    { id: 1,  company: '墨丘利科技', role: 'iOS 开发实习生',   status: 'oa',        deadlineIn: 1,  deadlineTime: '23:59', deadlineLabel: '笔试截止', updatedHours: 1,   source: 'manual' },
+    { id: 2,  company: '北岸实验室', role: 'SwiftUI 实习生',   status: 'wishlist',  deadlineIn: 2,  deadlineTime: '23:59', deadlineLabel: '申请截止', updatedHours: 3,   source: 'remotive' },
+    { id: 3,  company: '云图互动',   role: 'iOS 客户端实习生', status: 'offer',     deadlineIn: 5,  deadlineTime: '18:00', deadlineLabel: '答复截止', updatedHours: 24,  source: 'manual' },
+    { id: 4,  company: '白露科技',   role: '移动端开发实习生', status: 'interview', interviewIn: 1, interviewTime: '14:00', interviewLabel: '一面',   updatedHours: 2,   source: 'manual' },
+    { id: 5,  company: '青禾网络',   role: 'iOS 实习生',       status: 'applied',   deadlineIn: 10, deadlineTime: '23:59', deadlineLabel: '申请截止', updatedHours: 48,  source: 'remotive' },
+    { id: 6,  company: '拾光软件',   role: 'Swift 开发实习生', status: 'wishlist',  deadlineIn: 8,  deadlineTime: '23:59', deadlineLabel: '申请截止', updatedHours: 72,  source: 'remotive' },
+    { id: 7,  company: '星河科技',   role: 'iOS 实习生',       status: 'oa',        deadlineIn: 9,  deadlineTime: '23:59', deadlineLabel: '笔试截止', updatedHours: 5,   source: 'manual' },
+    { id: 8,  company: '远山工作室', role: 'iOS 开发实习生',   status: 'rejected',  updatedHours: 96,  source: 'manual' },
+
+    { id: 9,  company: '松果智能',   role: '移动端实习生',     status: 'applied',   updatedHours: 144, source: 'remotive' },
+    { id: 10, company: '蓝鲸数据',   role: 'iOS 实习生',       status: 'interview', interviewIn: 3, interviewTime: '10:30', interviewLabel: '二面',   updatedHours: 20,  source: 'manual' },
+    { id: 11, company: '墨丘利科技', role: '客户端实习生',     status: 'applied',   updatedHours: 48,  source: 'manual' },
+    { id: 12, company: '云图互动',   role: 'iOS 实习生',       status: 'rejected',  updatedHours: 168, source: 'manual' },
+    { id: 13, company: '风铃科技',   role: 'SwiftUI 实习生',   status: 'wishlist',  deadlineIn: 12, deadlineTime: '23:59', deadlineLabel: '申请截止', updatedHours: 192, source: 'remotive' },
+    { id: 14, company: '知微科技',   role: 'iOS 实习生',       status: 'applied',   deadlineIn: 14, deadlineTime: '23:59', deadlineLabel: '申请截止', updatedHours: 216, source: 'remotive' },
+    { id: 15, company: '橙子网络',   role: '移动端实习生',     status: 'oa',        deadlineIn: 3,  deadlineTime: '23:59', deadlineLabel: '笔试截止', updatedHours: 6,   source: 'manual' },
+    { id: 16, company: '北辰软件',   role: 'iOS 实习生',       status: 'rejected',  updatedHours: 240, source: 'manual' },
+    { id: 17, company: '微光科技',   role: 'iOS 开发实习生',   status: 'applied',   updatedHours: 264, source: 'remotive' },
+    { id: 18, company: '海盐科技',   role: 'SwiftUI 实习生',   status: 'wishlist',  deadlineIn: 16, deadlineTime: '23:59', deadlineLabel: '申请截止', updatedHours: 288, source: 'remotive' },
+    { id: 19, company: '木星网络',   role: 'iOS 实习生',       status: 'withdrawn', updatedHours: 312, source: 'manual' },
+    { id: 20, company: '初见科技',   role: '移动端实习生',     status: 'applied',   updatedHours: 336, source: 'remotive' }
+  ];
+
+  const FEW_IDS = new Set([1, 2, 3, 4, 5, 6, 7, 8]);
+  const DATA_SETS = {
+    empty: [],
+    few: APPS.filter(a => FEW_IDS.has(a.id)),
+    many: APPS.slice()
+  };
+
+  const VARIANTS = {
+    A: {
+      name: '行动优先',
+      short: '今天要做什么',
+      desc: '保留独立「概览」tab；首屏只回答「现在要做什么」：截止与面试排最前，统计压缩成一行。',
+      elements: ['接下来 7 天', '进展一行', '独立概览 tab'],
+      tradeoff: '漏斗与分布几乎缺席；想复盘进展要进申请页。'
+    },
+    B: {
+      name: '看板优先',
+      short: '每份卡在哪',
+      desc: '不设独立概览：申请页顶部就是仪表盘。首屏回答「每份申请卡在哪」，状态列本身就是分布，截止用横幅和徽标提示。',
+      elements: ['截止横幅', '状态看板', '并入申请 tab'],
+      tradeoff: '一屏只能看到 2–3 列；申请多时纵向很长。'
+    },
+    C: {
+      name: '数据优先',
+      short: '我的进展如何',
+      desc: '保留独立「概览」tab；首屏回答「我的求职进展如何」：统计卡、漏斗、分布占主位，截止提醒下沉。',
+      elements: ['4 个统计卡', '转化漏斗', '独立概览 tab'],
+      tradeoff: '首屏最重，截止提醒可能被推到第二屏。'
+    },
+    D: {
+      name: '清单优先',
+      short: '一屏看到所有',
+      desc: '不设独立概览：摘要条 + 筛选 + 按最近节点排序的清单，离行动最近。',
+      elements: ['摘要条', '筛选 chips', '并入申请 tab'],
+      tradeoff: '没有图形化漏斗，转化率需要另算或不要。'
+    }
+  };
+  const VAR_ORDER = ['A', 'B', 'C', 'D'];
+
+  const TABS = {
+    overview: { label: '概览', icon: 'grid' },
+    apps:     { label: '申请', icon: 'list' },
+    discover: { label: '发现', icon: 'compass' },
+    profile:  { label: '我的', icon: 'person' }
+  };
+
+  const FILTER_LABELS = {
+    all: '全部',
+    active: '进行中',
+    deadline: '7 天内截止',
+    closed: '已结束',
+    offer: 'Offer',
+    upcoming: '接下来 7 天',
+    'funnel-applied': '已投递',
+    'funnel-oa': '笔试及以后',
+    'funnel-interview': '面试及以后',
+    'status-wishlist': '想投',
+    'status-applied': '已投',
+    'status-oa': '笔试',
+    'status-interview': '面试',
+    'status-offer': 'Offer',
+    'status-rejected': '已拒',
+    'status-withdrawn': '已撤'
+  };
+
+  // ============================================================
+  // Icons
+  // ============================================================
+
+  const ICONS = {
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    chevronR: '<path d="M9 18l6-6-6-6"/>',
+    chevronL: '<path d="M15 18l-6-6 6-6"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    calendar: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18"/>',
+    bell: '<path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/>',
+    list: '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r=".9" fill="currentColor" stroke="none"/><circle cx="3.5" cy="12" r=".9" fill="currentColor" stroke="none"/><circle cx="3.5" cy="18" r=".9" fill="currentColor" stroke="none"/>',
+    grid: '<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>',
+    compass: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
+    person: '<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0115 0"/>',
+    target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>',
+    check: '<path d="M20 6L9 17l-5-5"/>'
+  };
+
+  const icon = (name, size = 20) =>
+    `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+
+  // ============================================================
+  // State
+  // ============================================================
+
+  const params = new URLSearchParams(location.search);
+  let variant = VAR_ORDER.includes(params.get('variant')) ? params.get('variant') : 'A';
+  let dataState = ['empty', 'few', 'many'].includes(params.get('data')) ? params.get('data') : 'few';
+  let route = { name: 'dashboard' };
+  const initialView = params.get('view');
+  if (initialView === 'list') {
+    route = { name: 'list', filter: params.get('filter') || 'all' };
+  } else if (initialView === 'detail') {
+    const id = Number(params.get('app'));
+    if (id) route = { name: 'detail', appId: id };
+  } else if (initialView === 'discover' || initialView === 'profile') {
+    route = { name: initialView };
+  }
+  let stack = [];
+  let dFilter = 'all';
+  let toastTimer = null;
+
+  const screenEl = document.getElementById('screen');
+  const tabbarEl = document.getElementById('tabbar');
+  const variantListEl = document.getElementById('variantList');
+  const variantDetailEl = document.getElementById('variantDetail');
+  const toastEl = document.getElementById('toast');
+  const phoneWrapEl = document.getElementById('phoneWrap');
+  const phoneEl = document.getElementById('phone');
+  const paramReadoutEl = document.getElementById('paramReadout');
+
+  // ============================================================
+  // Utilities
+  // ============================================================
+
+  const currentApps = () => DATA_SETS[dataState];
+
+  function addDays(offset) {
+    const d = new Date(TODAY);
+    d.setDate(d.getDate() + offset);
+    return d;
+  }
+
+  function fmtDate(offset) {
+    const d = addDays(offset);
+    return `${d.getMonth() + 1}月${d.getDate()}日`;
+  }
+
+  function fmtWeekday(offset) {
+    return WEEKDAYS[addDays(offset).getDay()];
+  }
+
+  function dateSubtitle() {
+    const now = new Date();
+    return `${now.getMonth() + 1}月${now.getDate()}日 · ${WEEKDAYS[now.getDay()]}`;
+  }
+
+  function dayShort(offset) {
+    if (offset === 0) return '今天';
+    if (offset === 1) return '明天';
+    if (offset === 2) return '后天';
+    const d = addDays(offset);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+
+  function dayLong(offset) {
+    if (offset <= 2) return dayShort(offset);
+    return `${fmtWeekday(offset)} ${fmtDate(offset)}`;
+  }
+
+  function deadlineText(a) {
+    const d = a.deadlineIn;
+    if (d == null) return '';
+    if (d === 0) return `今天 ${a.deadlineTime}`;
+    if (d === 1) return `明天 ${a.deadlineTime}`;
+    if (d <= 6) return `${d} 天后`;
+    return `${fmtDate(d)} ${a.deadlineTime}`;
+  }
+
+  function deadlineClass(a) {
+    if (a.deadlineIn == null) return '';
+    if (a.deadlineIn <= 1) return 'u-red';
+    if (a.deadlineIn <= 3) return 'u-orange';
+    return 'u-plain';
+  }
+
+  function deadlineChip(a) {
+    if (a.deadlineIn == null) return '';
+    return `<span class="deadline-chip ${deadlineClass(a)}">${deadlineText(a)}</span>`;
+  }
+
+  function interviewChip(a) {
+    if (a.interviewIn == null) return '';
+    return `<span class="deadline-chip u-orange">${dayShort(a.interviewIn)} ${a.interviewTime}</span>`;
+  }
+
+  function fmtRelativeHours(h) {
+    if (h < 1) return '刚刚';
+    if (h < 24) return `${Math.round(h)} 小时前`;
+    const d = Math.round(h / 24);
+    return d === 1 ? '昨天' : `${d} 天前`;
+  }
+
+  function countStatus(apps) {
+    const c = {};
+    apps.forEach(a => { c[a.status] = (c[a.status] || 0) + 1; });
+    return c;
+  }
+
+  const isActive = a => a.status !== 'rejected' && a.status !== 'withdrawn';
+  const activeCount = apps => apps.filter(isActive).length;
+
+  function deadlineApps(apps) {
+    return apps
+      .filter(a => a.deadlineIn != null && a.deadlineIn <= 7)
+      .sort((a, b) => a.deadlineIn - b.deadlineIn);
+  }
+
+  function nextEventIn(a) {
+    const d = a.deadlineIn == null ? Infinity : a.deadlineIn;
+    const i = a.interviewIn == null ? Infinity : a.interviewIn;
+    return Math.min(d, i);
+  }
+
+  function nextEventTime(a) {
+    if (a.interviewIn != null && a.interviewIn === a.deadlineIn) {
+      return [a.interviewTime || '', a.deadlineTime || ''].sort()[0];
+    }
+    if (nextEventIn(a) === a.interviewIn && a.interviewIn != null) return a.interviewTime || '';
+    return a.deadlineTime || '';
+  }
+
+  function sortByNextEvent(apps) {
+    return [...apps].sort((a, b) => {
+      const na = nextEventIn(a);
+      const nb = nextEventIn(b);
+      if (na !== nb) return na - nb;
+      const ta = nextEventTime(a);
+      const tb = nextEventTime(b);
+      if (ta !== tb) return ta.localeCompare(tb);
+      return a.updatedHours - b.updatedHours;
+    });
+  }
+
+  function upcomingApps(apps) {
+    return sortByNextEvent(apps.filter(a => nextEventIn(a) <= 7));
+  }
+
+  function filterApps(apps, filter) {
+    let list;
+    if (filter === 'active') list = apps.filter(isActive);
+    else if (filter === 'deadline') list = deadlineApps(apps);
+    else if (filter === 'upcoming') list = upcomingApps(apps);
+    else if (filter === 'closed') list = apps.filter(a => !isActive(a));
+    else if (filter === 'offer') list = apps.filter(a => a.status === 'offer');
+    else if (filter === 'funnel-applied') list = apps.filter(a => a.status !== 'wishlist' && a.status !== 'withdrawn');
+    else if (filter === 'funnel-oa') list = apps.filter(a => ['oa', 'interview', 'offer'].includes(a.status));
+    else if (filter === 'funnel-interview') list = apps.filter(a => ['interview', 'offer'].includes(a.status));
+    else if (filter.startsWith('status-')) list = apps.filter(a => a.status === filter.slice(7));
+    else list = apps.slice();
+    return sortByNextEvent(list);
+  }
+
+  function agendaEvents(apps) {
+    const events = [];
+    apps.forEach(a => {
+      if (a.deadlineIn != null && a.deadlineIn <= 7) {
+        events.push({ app: a, kind: 'deadline', in: a.deadlineIn, time: a.deadlineTime, title: a.deadlineLabel || '截止' });
+      }
+      if (a.interviewIn != null && a.interviewIn <= 7) {
+        events.push({ app: a, kind: 'interview', in: a.interviewIn, time: a.interviewTime, title: a.interviewLabel || '面试' });
+      }
+    });
+    events.sort((x, y) => x.in - y.in || String(x.time).localeCompare(String(y.time)));
+    return events;
+  }
+
+  function statusPill(key) {
+    const s = STATUS[key];
+    return `<span class="pill" style="--c:${s.color}"><i></i>${s.label}</span>`;
+  }
+
+  function appRow(a, opts = {}) {
+    let sideSub;
+    if (opts.side === 'updated') {
+      sideSub = `<span class="updated">${fmtRelativeHours(a.updatedHours)}</span>`;
+    } else if (a.deadlineIn != null) {
+      sideSub = deadlineChip(a);
+    } else if (a.interviewIn != null) {
+      sideSub = interviewChip(a);
+    } else {
+      sideSub = `<span class="updated">${fmtRelativeHours(a.updatedHours)}</span>`;
+    }
+    return `<button class="app-row" data-nav="detail" data-app="${a.id}">
+      <span class="status-rail" style="background:${STATUS[a.status].color}"></span>
+      <span class="app-main">
+        <span class="app-company">${a.company}</span>
+        <span class="app-role">${a.role}</span>
+      </span>
+      <span class="app-side">
+        ${statusPill(a.status)}
+        <span class="side-sub">${sideSub}</span>
+      </span>
+      ${icon('chevronR', 15)}
+    </button>`;
+  }
+
+  // ============================================================
+  // Shared chrome
+  // ============================================================
+
+  function navLarge(title, sub, withAdd = true) {
+    return `<div class="nav-large">
+      <div class="nav-row">
+        <h1>${title}</h1>
+        ${withAdd ? `<button class="icon-btn" data-nav="add" aria-label="添加申请">${icon('plus', 20)}</button>` : ''}
+      </div>
+      ${sub ? `<div class="nav-sub">${sub}</div>` : ''}
+    </div>`;
+  }
+
+  function tabsForVariant() {
+    return (variant === 'B' || variant === 'D')
+      ? ['apps', 'discover', 'profile']
+      : ['overview', 'apps', 'discover', 'profile'];
+  }
+
+  function activeTab() {
+    if (route.name === 'dashboard') return (variant === 'B' || variant === 'D') ? 'apps' : 'overview';
+    if (route.name === 'list' || route.name === 'detail') return 'apps';
+    if (route.name === 'discover') return 'discover';
+    if (route.name === 'profile') return 'profile';
+    return 'overview';
+  }
+
+  function renderTabs() {
+    const active = activeTab();
+    return tabsForVariant().map(key => {
+      const t = TABS[key];
+      return `<button class="tab ${active === key ? 'on' : ''}" data-tab="${key}" aria-current="${active === key ? 'page' : 'false'}">
+        ${icon(t.icon, 23)}<span>${t.label}</span>
+      </button>`;
+    }).join('');
+  }
+
+  // ============================================================
+  // Variant A — action first
+  // ============================================================
+
+  function agendaRow(ev) {
+    const a = ev.app;
+    const urgent = ev.in <= 1;
+    return `<button class="agenda-row" data-nav="detail" data-app="${a.id}">
+      <span class="agenda-date ${urgent ? 'is-urgent' : ''}">
+        <b>${dayShort(ev.in)}</b><span>${ev.time}</span>
+      </span>
+      <span class="agenda-main">
+        <span class="agenda-title">${a.company}</span>
+        <span class="agenda-sub">${ev.title} · ${a.role}</span>
+      </span>
+      <span class="agenda-flag">${ev.kind === 'interview' ? icon('calendar', 16) : icon('clock', 16)}</span>
+      ${icon('chevronR', 16)}
+    </button>`;
+  }
+
+  function renderA(apps) {
+    if (!apps.length) return emptyA();
+    const events = agendaEvents(apps).slice(0, 4);
+    const upcoming = upcomingApps(apps);
+    const dl = deadlineApps(apps);
+    const offers = apps.filter(a => a.status === 'offer').length;
+    const recent = [...apps].sort((a, b) => a.updatedHours - b.updatedHours).slice(0, 4);
+
+    return `${navLarge('今天', dateSubtitle())}
+      <section class="section">
+        <div class="section-head">
+          <h2>接下来 7 天</h2>
+          <button class="link" data-nav="list" data-filter="upcoming">全部 ${upcoming.length}</button>
+        </div>
+        ${events.length
+          ? `<div class="card">${events.map(agendaRow).join('')}</div>`
+          : `<div class="card empty-inline">7 天内没有截止或面试。去 Discover 看看新岗位。</div>`}
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h2>进展</h2>
+          <span class="caption">完整状态在申请页</span>
+        </div>
+        <div class="chip-stats">
+          <button class="stat-chip" data-nav="list" data-filter="active"><b>${activeCount(apps)}</b><span>进行中</span></button>
+          <button class="stat-chip ${dl.length ? 'warn' : ''}" data-nav="list" data-filter="deadline"><b>${dl.length}</b><span>7 天内截止</span></button>
+          <button class="stat-chip" data-nav="list" data-filter="offer"><b>${offers}</b><span>Offer</span></button>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h2>最近更新</h2>
+          <button class="link" data-nav="list">查看全部</button>
+        </div>
+        <div class="card app-rows">${recent.map(a => appRow(a, { side: 'updated' })).join('')}</div>
+      </section>
+
+      <div class="footnote">模拟数据 · 状态枚举暂定，最终以 03 为准</div>`;
+  }
+
+  function emptyA() {
+    return `${navLarge('今天', dateSubtitle())}
+      <div class="empty-hero">
+        <div class="empty-art">${icon('target', 40)}</div>
+        <h2>从第一份申请开始</h2>
+        <p>把想投的岗位记下来，NextStep 会在截止前提醒你。</p>
+        <button class="btn-primary" data-nav="add">添加第一份申请</button>
+        <button class="btn-secondary" data-nav="discover">去 Discover 看看</button>
+      </div>`;
+  }
+
+  // ============================================================
+  // Variant B — pipeline board
+  // ============================================================
+
+  function boardCard(a) {
+    let meta;
+    if (a.deadlineIn != null) meta = deadlineChip(a);
+    else if (a.interviewIn != null) meta = interviewChip(a);
+    else meta = `<span class="updated">${fmtRelativeHours(a.updatedHours)}</span>`;
+    return `<button class="board-card" data-nav="detail" data-app="${a.id}">
+      <span class="board-company">${a.company}</span>
+      <span class="board-role">${a.role}</span>
+      <span class="board-meta">${meta}</span>
+    </button>`;
+  }
+
+  function boardColumns(apps) {
+    const counts = countStatus(apps);
+    const order = ['wishlist', 'applied', 'oa', 'interview', 'offer', 'rejected', 'withdrawn'];
+    return order.filter(key => (counts[key] || 0) > 0).map(key => {
+      const items = sortByNextEvent(apps.filter(a => a.status === key));
+      return `<section class="board-col">
+        <button class="board-col-head" data-nav="list" data-filter="status-${key}" aria-label="查看${STATUS[key].label}的申请">
+          <span><i class="dot" style="background:${STATUS[key].color}"></i>${STATUS[key].label}</span>
+          <b>${counts[key]}</b>
+        </button>
+        <div class="board-col-body">${items.map(boardCard).join('')}</div>
+      </section>`;
+    }).join('');
+  }
+
+  function renderB(apps) {
+    if (!apps.length) return emptyB();
+    const dl = deadlineApps(apps);
+    return `${navLarge('申请', `${apps.length} 份申请 · ${activeCount(apps)} 份进行中`)}
+      ${dl.length ? `<button class="banner" data-nav="list" data-filter="deadline">
+        <span class="banner-icon">${icon('bell', 17)}</span>
+        <span class="banner-text">
+          <b>${dl.length} 份将在 7 天内截止</b>
+          <small>最早：${dl[0].company} · ${deadlineText(dl[0])}</small>
+        </span>
+        ${icon('chevronR', 17)}
+      </button>` : ''}
+      <div class="board">${boardColumns(apps)}</div>
+      <div class="board-hint">左右滑动 · 点列标题筛选 · 点卡片看详情</div>`;
+  }
+
+  function emptyB() {
+    return `${navLarge('申请', '还没有申请')}
+      <div class="empty-board-hero">
+        <h2>你的第一列在这里</h2>
+        <p>添加后，申请会自动按状态排进看板。</p>
+        <button class="btn-primary" data-nav="add">添加第一份申请</button>
+        <button class="btn-secondary" data-nav="discover">去 Discover 看看</button>
+      </div>
+      <div class="ghost-board" aria-hidden="true">
+        ${['想投', '已投', '笔试'].map(label => `<div class="ghost-col">
+          <div class="ghost-head">${label}</div>
+          <div class="ghost-card"></div>
+          <div class="ghost-card"></div>
+        </div>`).join('')}
+      </div>`;
+  }
+
+  // ============================================================
+  // Variant C — stats / funnel
+  // ============================================================
+
+  function funnelData(apps) {
+    const c = countStatus(apps);
+    return [
+      { label: '已投递', count: apps.filter(a => a.status !== 'wishlist' && a.status !== 'withdrawn').length, filter: 'funnel-applied', color: '#007aff' },
+      { label: '笔试', count: (c.oa || 0) + (c.interview || 0) + (c.offer || 0), filter: 'funnel-oa', color: '#ff9500' },
+      { label: '面试', count: (c.interview || 0) + (c.offer || 0), filter: 'funnel-interview', color: '#af52de' },
+      { label: 'Offer', count: c.offer || 0, filter: 'offer', color: '#34c759' }
+    ];
+  }
+
+  function funnelRow(f, index, funnel) {
+    const base = funnel[0].count || 1;
+    const pct = Math.round((f.count / base) * 100);
+    const prev = index > 0 ? funnel[index - 1] : null;
+    const conv = prev ? Math.round((f.count / (prev.count || 1)) * 100) : null;
+    const convHtml = index > 0 ? `<div class="funnel-conv"><span>↓ ${conv}%</span></div>` : '';
+    return `${convHtml}<button class="funnel-row" data-nav="list" data-filter="${f.filter}">
+      <span class="funnel-label">${f.label}<b>${f.count}</b></span>
+      <span class="funnel-track"><span class="funnel-fill" style="width:${Math.max(pct, 3)}%;background:${f.color}"></span></span>
+      <span class="funnel-pct">${pct}%</span>
+    </button>`;
+  }
+
+  function distributionHtml(apps) {
+    const c = countStatus(apps);
+    const present = STATUSES.filter(s => (c[s.key] || 0) > 0);
+    return `<div class="stackbar" role="img" aria-label="状态分布">
+        ${present.map(s => `<span style="flex:${c[s.key]};background:${s.color}" title="${s.label} ${c[s.key]}"></span>`).join('')}
+      </div>
+      <div class="dist-legend">
+        ${present.map(s => `<button class="dist-item" data-nav="list" data-filter="status-${s.key}">
+          <i style="background:${s.color}"></i><span>${s.label}</span><b>${c[s.key]}</b>
+        </button>`).join('')}
+      </div>`;
+  }
+
+  function deadlineRow(a) {
+    return `<button class="deadline-row" data-nav="detail" data-app="${a.id}">
+      <span class="deadline-date ${deadlineClass(a)}">${dayShort(a.deadlineIn)}</span>
+      <span class="deadline-row-main">
+        <b>${a.company}</b>
+        <span>${a.deadlineLabel || '截止'} · ${a.role}</span>
+      </span>
+      ${deadlineChip(a)}
+      ${icon('chevronR', 15)}
+    </button>`;
+  }
+
+  function renderC(apps) {
+    if (!apps.length) return emptyC();
+    const c = countStatus(apps);
+    const funnel = funnelData(apps);
+    const dl = deadlineApps(apps);
+    const recent = [...apps].sort((a, b) => a.updatedHours - b.updatedHours).slice(0, 2);
+    const offers = c.offer || 0;
+
+    return `${navLarge('概览', `更新于刚刚 · ${apps.length} 份申请`)}
+      <section class="section stat-grid">
+        <button class="stat-tile" data-nav="list" data-filter="all"><span>总申请</span><b>${apps.length}</b></button>
+        <button class="stat-tile" data-nav="list" data-filter="active"><span>进行中</span><b>${activeCount(apps)}</b></button>
+        <button class="stat-tile ${dl.length ? 'warn' : ''}" data-nav="list" data-filter="deadline"><span>7 天内截止</span><b>${dl.length}</b></button>
+        <button class="stat-tile" data-nav="list" data-filter="offer"><span>Offer</span><b>${offers}</b></button>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2>转化漏斗</h2><span class="caption">按当前状态累计</span></div>
+        <div class="card funnel">
+          ${funnel.map((f, i) => funnelRow(f, i, funnel)).join('')}
+          <div class="mini-note">简化口径：已拒只计入「已投递」。最终口径待 03 的领域模型。</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2>状态分布</h2><span class="caption">当前状态</span></div>
+        <div class="card dist-card">${distributionHtml(apps)}</div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2>临近截止</h2><button class="link" data-nav="list" data-filter="deadline">查看全部</button></div>
+        <div class="card deadline-list">
+          ${dl.slice(0, 3).map(deadlineRow).join('') || '<div class="empty-inline">7 天内没有截止。</div>'}
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2>最近更新</h2><button class="link" data-nav="list">查看全部</button></div>
+        <div class="card app-rows">${recent.map(a => appRow(a, { side: 'updated' })).join('')}</div>
+      </section>`;
+  }
+
+  function emptyC() {
+    return `${navLarge('概览', '数据会从第一份申请开始累积')}
+      <div class="empty-data">
+        <div class="ghost-stats" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+        <h2>还没有数据</h2>
+        <p>添加第一份申请后，这里会出现漏斗、状态分布和临近截止。</p>
+        <button class="btn-primary" data-nav="add">添加第一份申请</button>
+        <button class="btn-secondary" data-nav="discover">去 Discover 看看</button>
+      </div>`;
+  }
+
+  // ============================================================
+  // Variant D — list first, no separate dashboard
+  // ============================================================
+
+  function renderD(apps) {
+    if (!apps.length) return emptyD();
+    const dl = deadlineApps(apps);
+    const offers = apps.filter(a => a.status === 'offer').length;
+    const filters = [
+      { key: 'all', label: '全部', count: apps.length },
+      { key: 'active', label: '进行中', count: activeCount(apps) },
+      { key: 'deadline', label: '临近截止', count: dl.length },
+      { key: 'closed', label: '已结束', count: apps.filter(a => !isActive(a)).length }
+    ];
+    const list = filterApps(apps, dFilter);
+    const sortLabel = dFilter === 'closed' ? '按最近更新' : '按最近节点';
+
+    return `<div class="nav-large">
+        <div class="nav-row">
+          <h1>申请</h1>
+          <button class="icon-btn" data-nav="add" aria-label="添加申请">${icon('plus', 20)}</button>
+        </div>
+        <div class="summary-strip">
+          <span><b>${activeCount(apps)}</b> 进行中</span>
+          <span><b>${dl.length}</b> 7 天内截止</span>
+          <span><b>${offers}</b> Offer</span>
+        </div>
+      </div>
+
+      <div class="d-filters">
+        ${filters.map(f => `<button class="d-chip ${dFilter === f.key ? 'on' : ''}" data-dfilter="${f.key}">${f.label} ${f.count}</button>`).join('')}
+      </div>
+      <div class="d-sort"><span>${sortLabel}</span><span>${list.length} 份</span></div>
+      <div class="card d-list">
+        ${list.length ? list.map(a => appRow(a)).join('') : '<div class="empty-inline">这个筛选下没有申请。</div>'}
+      </div>`;
+  }
+
+  function emptyD() {
+    return `<div class="nav-large">
+        <div class="nav-row">
+          <h1>申请</h1>
+          <button class="icon-btn" data-nav="add" aria-label="添加申请">${icon('plus', 20)}</button>
+        </div>
+        <div class="nav-sub">还没有申请</div>
+      </div>
+      <div class="empty-hero compact">
+        <div class="empty-art">${icon('target', 34)}</div>
+        <h2>从第一份申请开始</h2>
+        <p>摘要条和清单会随申请自动出现。</p>
+        <button class="btn-primary" data-nav="add">添加第一份申请</button>
+        <button class="btn-secondary" data-nav="discover">去 Discover 看看</button>
+      </div>
+      <div class="ghost-list" aria-hidden="true">
+        <div class="ghost-row"></div><div class="ghost-row"></div><div class="ghost-row"></div>
+      </div>`;
+  }
+
+  // ============================================================
+  // Stub routes — list & detail targets
+  // ============================================================
+
+  function renderListStub(filter, apps) {
+    const list = filterApps(apps, filter);
+    const label = FILTER_LABELS[filter] || '全部';
+    return `<div class="nav-compact">
+      <button class="nav-back" data-nav="back" aria-label="返回">${icon('chevronL', 21)}</button>
+      <h1>申请列表</h1>
+      <button class="icon-btn" data-nav="add" aria-label="添加申请">${icon('plus', 20)}</button>
+    </div>
+    <div class="stub-note">桩页面 · 展示从仪表盘到列表的落点</div>
+    <div class="list-filterbar">
+      <span class="filter-chip">${label} <b>${list.length}</b></span>
+      <span class="caption">按最近节点排序</span>
+    </div>
+    <div class="card list-page-rows">
+      ${list.length ? list.map(a => appRow(a)).join('') : '<div class="empty-inline">这个筛选下没有申请。</div>'}
+    </div>`;
+  }
+
+  function renderDetail(app) {
+    if (!app) return renderListStub('all', currentApps());
+    const s = STATUS[app.status];
+    const mainLabel = app.interviewIn != null ? '面试' : '截止';
+    const mainValue = app.interviewIn != null
+      ? `${dayLong(app.interviewIn)} ${app.interviewTime}`
+      : app.deadlineIn != null
+        ? `${fmtDate(app.deadlineIn)} ${app.deadlineTime}`
+        : '—';
+
+    return `<div class="nav-compact">
+      <button class="nav-back" data-nav="back" aria-label="返回">${icon('chevronL', 21)}</button>
+      <h1>申请详情</h1>
+      <span class="nav-spacer"></span>
+    </div>
+    <div class="stub-note">桩页面 · 展示从列表/仪表盘到详情的落点</div>
+    <div class="detail-head">
+      <div class="detail-company">${app.company}</div>
+      <div class="detail-role">${app.role}</div>
+      <div class="detail-tags">${statusPill(app.status)}${app.deadlineIn != null ? deadlineChip(app) : ''}</div>
+    </div>
+    <div class="card detail-card">
+      <div class="detail-row"><span>状态</span><b style="color:${s.color}">${s.label}</b></div>
+      <div class="detail-row"><span>${mainLabel}</span><b>${mainValue}</b></div>
+      <div class="detail-row"><span>最近更新</span><b>${fmtRelativeHours(app.updatedHours)}</b></div>
+      <div class="detail-row"><span>来源</span><b>${app.source === 'remotive' ? 'Remotive（示例）' : '手动添加'}</b></div>
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>状态（暂定枚举）</h2></div>
+      <div class="status-chips">
+        ${STATUSES.map(x => `<span class="status-chip ${x.key === app.status ? 'on' : ''}" style="--c:${x.color}">${x.label}</span>`).join('')}
+      </div>
+    </div>
+    <div class="card detail-note">
+      <span>备注</span>
+      <p>原型未实现。字段与最终状态机以 ticket 03 为准。</p>
+    </div>`;
+  }
+
+  function renderPlaceholder(key) {
+    const titles = { discover: '发现', profile: '我的' };
+    const bodies = {
+      discover: 'Discover 与匹配不在本原型范围内。这里只验证底部导航结构。',
+      profile: '个人画像与偏好设置不在本原型范围内。'
+    };
+    return `<div class="nav-compact">
+      <button class="nav-back" data-nav="back" aria-label="返回">${icon('chevronL', 21)}</button>
+      <h1>${titles[key]}</h1>
+      <span class="nav-spacer"></span>
+    </div>
+    <div class="placeholder">
+      ${icon(key === 'discover' ? 'compass' : 'person', 40)}
+      <h2>${titles[key]}</h2>
+      <p>${bodies[key]}</p>
+    </div>`;
+  }
+
+  // ============================================================
+  // Dashboard dispatcher
+  // ============================================================
+
+  function renderDashboard(apps) {
+    if (variant === 'A') return renderA(apps);
+    if (variant === 'B') return renderB(apps);
+    if (variant === 'C') return renderC(apps);
+    return renderD(apps);
+  }
+
+  // ============================================================
+  // Render loop
+  // ============================================================
+
+  function render() {
+    const apps = currentApps();
+    let html;
+    if (route.name === 'list') html = renderListStub(route.filter, apps);
+    else if (route.name === 'detail') html = renderDetail(apps.find(a => a.id === route.appId));
+    else if (route.name === 'discover' || route.name === 'profile') html = renderPlaceholder(route.name);
+    else html = renderDashboard(apps);
+
+    screenEl.innerHTML = html;
+    screenEl.scrollTop = 0;
+    tabbarEl.innerHTML = renderTabs();
+    syncURL();
+  }
+
+  function renderVariantPanel() {
+    variantListEl.innerHTML = VAR_ORDER.map(key => {
+      const v = VARIANTS[key];
+      return `<button class="variant-row ${variant === key ? 'on' : ''}" data-variant="${key}" aria-pressed="${variant === key}">
+        <span class="vr-key">${key}</span>
+        <span class="vr-main"><b>${v.name}</b><small>${v.short}</small></span>
+        <span class="vr-check">${variant === key ? icon('check', 14) : ''}</span>
+      </button>`;
+    }).join('');
+
+    const v = VARIANTS[variant];
+    variantDetailEl.innerHTML = `<div class="vd-key">${variant} · ${v.name}</div>
+      <p>${v.desc}</p>
+      <div class="vd-tags">${v.elements.map(x => `<span>${x}</span>`).join('')}</div>
+      <div class="vd-tradeoff"><b>取舍</b> ${v.tradeoff}</div>`;
+  }
+
+  function renderDataSeg() {
+    document.querySelectorAll('[data-data]').forEach(btn => {
+      const on = btn.dataset.data === dataState;
+      btn.classList.toggle('on', on);
+      btn.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  function renderSwitcherLabel() {
+    document.getElementById('vkey').textContent = variant;
+    document.getElementById('vname').textContent = VARIANTS[variant].name;
+    paramReadoutEl.textContent = new URL(location.href).search || `?variant=${variant}&data=${dataState}`;
+  }
+
+  function renderAll() {
+    render();
+    renderVariantPanel();
+    renderDataSeg();
+    renderSwitcherLabel();
+  }
+
+  // ============================================================
+  // Navigation & state changes
+  // ============================================================
+
+  function go(next) {
+    stack.push(route);
+    route = next;
+    render();
+  }
+
+  function resetTo(next) {
+    stack = [];
+    route = next;
+    render();
+  }
+
+  function syncURL() {
+    const url = new URL(location.href);
+    url.searchParams.set('variant', variant);
+    url.searchParams.set('data', dataState);
+
+    if (route.name === 'list') {
+      url.searchParams.set('view', 'list');
+      url.searchParams.set('filter', route.filter || 'all');
+      url.searchParams.delete('app');
+    } else if (route.name === 'detail') {
+      url.searchParams.set('view', 'detail');
+      url.searchParams.set('app', String(route.appId));
+      url.searchParams.delete('filter');
+    } else if (route.name === 'discover' || route.name === 'profile') {
+      url.searchParams.set('view', route.name);
+      url.searchParams.delete('filter');
+      url.searchParams.delete('app');
+    } else {
+      url.searchParams.delete('view');
+      url.searchParams.delete('filter');
+      url.searchParams.delete('app');
+    }
+
+    try {
+      history.replaceState(null, '', url);
+    } catch (err) {
+      /* file:// may disallow replaceState; the prototype still works */
+    }
+  }
+
+  function setVariant(next, push = true) {
+    if (!VAR_ORDER.includes(next)) return;
+    variant = next;
+    stack = [];
+    route = { name: 'dashboard' };
+    dFilter = 'all';
+    if (push) syncURL();
+    renderAll();
+  }
+
+  function cycleVariant(dir) {
+    const i = VAR_ORDER.indexOf(variant);
+    setVariant(VAR_ORDER[(i + dir + VAR_ORDER.length) % VAR_ORDER.length]);
+  }
+
+  function setData(next) {
+    if (!DATA_SETS[next]) return;
+    dataState = next;
+    stack = [];
+    route = { name: 'dashboard' };
+    dFilter = 'all';
+    syncURL();
+    renderAll();
+  }
+
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('on'), 1800);
+  }
+
+  // ============================================================
+  // Events
+  // ============================================================
+
+  screenEl.addEventListener('click', e => {
+    const df = e.target.closest('[data-dfilter]');
+    if (df && screenEl.contains(df)) {
+      dFilter = df.dataset.dfilter;
+      render();
+      return;
+    }
+
+    const el = e.target.closest('[data-nav]');
+    if (!el || !screenEl.contains(el)) return;
+    const nav = el.dataset.nav;
+
+    if (nav === 'back') {
+      route = stack.length ? stack.pop() : { name: 'dashboard' };
+      render();
+      return;
+    }
+    if (nav === 'detail') {
+      go({ name: 'detail', appId: Number(el.dataset.app) });
+      return;
+    }
+    if (nav === 'list') {
+      go({ name: 'list', filter: el.dataset.filter || 'all' });
+      return;
+    }
+    if (nav === 'discover') {
+      go({ name: 'discover' });
+      return;
+    }
+    if (nav === 'add') {
+      showToast('添加申请（原型未实现）');
+    }
+  });
+
+  tabbarEl.addEventListener('click', e => {
+    const btn = e.target.closest('[data-tab]');
+    if (!btn) return;
+    const key = btn.dataset.tab;
+    if (key === 'overview') resetTo({ name: 'dashboard' });
+    else if (key === 'apps') resetTo((variant === 'B' || variant === 'D') ? { name: 'dashboard' } : { name: 'list', filter: 'all' });
+    else resetTo({ name: key });
+  });
+
+  variantListEl.addEventListener('click', e => {
+    const btn = e.target.closest('[data-variant]');
+    if (btn) setVariant(btn.dataset.variant);
+  });
+
+  document.getElementById('prev').addEventListener('click', () => cycleVariant(-1));
+  document.getElementById('next').addEventListener('click', () => cycleVariant(1));
+
+  document.querySelectorAll('[data-data]').forEach(btn => {
+    btn.addEventListener('click', () => setData(btn.dataset.data));
+  });
+
+  document.addEventListener('keydown', e => {
+    const t = e.target;
+    if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      cycleVariant(-1);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      cycleVariant(1);
+    }
+  });
+
+  function fitPhone() {
+    const available = Math.min(window.innerWidth - 32, 413);
+    const scale = Math.min(1, available / 413);
+    phoneEl.style.transform = `scale(${scale})`;
+    phoneEl.style.transformOrigin = 'top left';
+    phoneWrapEl.style.width = `${413 * scale}px`;
+    phoneWrapEl.style.height = `${872 * scale}px`;
+  }
+
+  window.addEventListener('resize', fitPhone);
+
+  // ============================================================
+  // Boot
+  // ============================================================
+
+  fitPhone();
+  renderAll();
+})();
+</script>
+</body>
+</html>
