@@ -110,3 +110,9 @@ struct MatchResult {
 - [可复用开源调研](../research/matching-algorithms.md)
 - [匹配解释展示原型](../prototypes/02-match-explanation.html)
 - [技能词典初稿](../skill-dictionary.md)
+
+## Comments
+
+### 2026-11-08 与领域模型对齐
+
+- ticket 03 定稿 `UserProfile.skills` 为 `[String]`（技能词典的 canonical 名称，不带熟练度）；`MatchingEngine` 在计算时把名称解析为 `SkillID`。`MatchResult.matchedSkills` / `missingSkills` 仍用 `[SkillID]`，不受影响。

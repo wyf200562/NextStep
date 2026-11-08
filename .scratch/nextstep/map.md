@@ -34,12 +34,12 @@
 - [仪表盘首屏结构](issues/08-dashboard-prototype.md): 采用变体 A「行动优先」；独立概览 tab，首屏为「接下来 7 天」+ 三个进展计数 + 最近更新；空状态不放 1/2/3 步骤说明；状态分布与漏斗留 P1。
 - [功能边界与 MVP 验收线](issues/01-feature-boundary.md): v1 = Application 追踪闭环 + 本地可解释匹配 + Remotive/手动发现；P0 顺序 领域→追踪器→匹配→Remotive→收尾；P1 为 URL 导入/漏斗/状态分布图；Share/Widget、云 LLM、账号/云同步等明确不做。
 - [匹配算法、技能词典与解释展示](issues/02-matching-engine.md): 技能词典 + 规则加权（技能 60/方向 20/地点 10/岗位类型 10）；中英别名、无 NLTokenizer；不符合岗位展示但标 ineligible；画像 ≥3 技能才计分；解释展示采用变体 A（列表技能标签 + 详情长解释）。
+- [领域模型与投递状态机](issues/03-domain-model.md): 5 个实体（Application/JobPosting/InterviewRound/StatusChange/UserProfile）；七态状态机允许跳级与回退，rejected/withdrawn 可显式重开（rejected→offer 覆盖 HR 捞回），offer 终态；OA 仅为状态、不记轮次；skills 存技能词典 canonical 名称（[String]），枚举存 raw String + computed enum，identityKey 唯一 upsert，VersionedSchema V1 + 轻量迁移；派生值不落库。
 
 ## Not yet specified
 
 - 视觉与信息架构（仪表盘 08、匹配解释组件 02 已定稿）：追踪器页面、Discover 其余布局、空状态/错误状态、动效。
 - 品牌细节（图标、配色、文案语气）：不影响技术决策，可最后定。
-- 提醒文案与通知时机策略（截止前 1 天/3 天等）：依赖领域模型和用户偏好。
 
 ## Out of scope
 
