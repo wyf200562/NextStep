@@ -43,10 +43,11 @@
 - [混合架构与 JobSource 抽象](issues/04-architecture.md): 单 target 分层 + 协议缝；MVVM 为主、两个只读 @Query 页、状态历史 UIKit/MVC；统一 JobSource + JobPostingDraft + JobRepository（滚动 24h ≤4 次、60s 间隔、缓存优先）；MatchingEngine 纯 + MatchService；4 条 ADR。
 - [30 天排期、测试与演示方案](issues/06-schedule-demo.md): 不做日历/时间规划；执行按 01 的 P0 顺序，只定完成标准；测试沿用基线；不做视频，中文 README + 现场演示；面试讲匹配/JobSource/SwiftData 三个取舍；简历呈现等雏形后再定。
 - [Remotive API 现状复核](issues/09-remotive-api-recheck.md): 公共 API 每日仅约 10–12 条样本、`limit/search/category` 全部 no-op、0 internship；保留 Remotive 作真实数据/演示源，手动粘贴 JD 为主要兜底；默认查询 software-dev + 数量上限 50，UI 标样本模式、ineligible 分组。
+- [Discover 样本模式 UI 与空状态原型](issues/11-discover-sample-ui.md): 采用变体 C「每日样本 digest」；深色样本头图常驻说明实际样本数/0 实习/来源，只看实习为纯 UI 开关，粘贴 JD 为主 CTA（顶部/空状态/ineligible 旁），eligible 在前、ineligible 展示但不显示 0 分；缓存优先 + 非阻塞刷新失败说明。
 
 ## Not yet specified
 
-- 视觉与信息架构（仪表盘 08、匹配解释组件 02 已定稿）：追踪器页面、动效。
+- 视觉与信息架构（仪表盘 08、匹配解释组件 02、Discover 样本模式 11 已定稿）：追踪器页面、动效。
 - 品牌细节（图标、配色、文案语气）：不影响技术决策，可最后定。
 - 简历呈现与项目叙事：等 v1 雏形出来后，按实际实现决定简历 bullet、演示重点和面试叙事。
 
