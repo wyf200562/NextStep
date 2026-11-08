@@ -206,3 +206,13 @@ protocol JobRepository: AnyObject {
 - v1 不建 `Domain/NotificationScheduling.swift` 与 `Data/Notifications/UserNotificationScheduler`，组合根不注入 `NotificationScheduler`。
 - 未来实现通知时再引入协议/实现，并直接从 `Application` / `InterviewRound` 读取数据。
 - 其余分层、协议缝（`JobSource` / `JobRepository` / `ApplicationRepository` / `UserProfileRepository` / `MatchProviding` / `DateProvider`）与 ADR 不变。
+
+### 2026-11-08 Discover 默认查询与样本模式（来自「Remotive API 现状复核」）
+
+见 [Remotive API 现状复核](09-remotive-api-recheck.md)。协议不变，只补默认值与 DTO 行为：
+
+- 默认 `JobQuery`：无关键字、`category: "software-dev"`、数量上限 50（字段名以最终实现为准）；每次刷新只发一个查询。
+- 200 + 12 条样本是 `.refreshed`，不是 `.failed`；条数很少不应视为解码失败或空数据。`total-job-count` 存在且很小（≤50）时，UI 标“样本模式”。
+- DTO 新字段按可选处理：`total-job-count`（样本模式判断）、`company_logo_url`（展示可选）；顶层 `00-warning` 忽略或仅日志。
+- `JobSource` / `JobRepository` / `RefreshOutcome` / `JobSourceFactory` / `JobPostingDraft` / `identityKey` 均不变；缓存、节流、错误映射、离线策略不变。每日快照下 1 次/日成功刷新足够，4 次/日是上限。
+- 手动粘贴 JD 提升为 Discover 主要兜底，但继续走 `ManualJobSource` + `JobRepository.importManual`；不替换 Remotive 演示源。
