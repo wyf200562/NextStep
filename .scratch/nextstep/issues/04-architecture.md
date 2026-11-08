@@ -196,3 +196,13 @@ protocol JobRepository: AnyObject {
 
 - `GLOSSARY.md` 新增：`JobSource`、`JobPostingDraft`、`JobRepository`、`JobQuery`、`MatchingEngine`。
 - 本 ticket 最初建议把手动粘贴拆成 `ManualJobImporter`；讨论后按“所有来源统一 conform JobSource”定稿，代价是需要 `JobSourceFactory` 按输入创建手动来源，已记录在 ADR-0003。
+
+## Comments
+
+### 2026-11-08 范围变更（通知延后）
+
+本地通知移出 v1（见 [截止与面试提醒策略](10-reminder-policy.md)，已关闭）。据此：
+
+- v1 不建 `Domain/NotificationScheduling.swift` 与 `Data/Notifications/UserNotificationScheduler`，组合根不注入 `NotificationScheduler`。
+- 未来实现通知时再引入协议/实现，并直接从 `Application` / `InterviewRound` 读取数据。
+- 其余分层、协议缝（`JobSource` / `JobRepository` / `ApplicationRepository` / `UserProfileRepository` / `MatchProviding` / `DateProvider`）与 ADR 不变。

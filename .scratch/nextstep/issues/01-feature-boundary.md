@@ -118,3 +118,13 @@ NextStep v1 到底交付哪些功能，按什么顺序？需要确定：
 - 匹配算法、技能词典、解释格式、测试用例 → [匹配算法与技能词典](02-matching-engine.md)。
 - 分层、`JobSource` 协议签名、依赖注入、ADR → [混合架构与 JobSource 抽象](04-architecture.md)。
 - 四周排期、测试策略、演示脚本、README → [30 天排期、测试与演示方案](06-schedule-demo.md)。
+
+## Comments
+
+### 2026-11-08 范围变更（通知延后）
+
+本地通知移出 v1（见 [截止与面试提醒策略](10-reminder-policy.md)，已关闭）。据此：
+
+- P0 追踪器闭环中的「截止日期 + 本地通知提醒」改为「截止日期 + 仪表盘『今天 / 接下来 7 天』展示」。
+- 黄金路径第 6 步「截止前收到本地通知」改为「在概览的『今天 / 接下来 7 天』看到截止/面试」。
+- 其余 P0/P1/不做清单不变；`Application.deadline`、`InterviewRound.scheduledAt` 继续保留。
