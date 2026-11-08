@@ -22,6 +22,22 @@ _Avoid_: source, fetchedMethod（易与 HTTP 请求方法混淆）
 JobPosting 的稳定身份字符串，由获取方式与外部 ID（或本地 UUID）组成，如 `remotive:12345`；用于刷新时 upsert 去重，不同于本机主键 `id`。
 _Avoid_: dedupeKey（偏实现）, externalKey（手动录入并不 external）
 
+**JobSource（岗位来源）**:
+岗位数据进入 NextStep 的统一来源；每个实现对应一种获取方式（Remotive、手动粘贴、未来的 URL 导入）。
+_Avoid_: JobService, JobAPI, JobProvider
+
+**JobPostingDraft（岗位草稿）**:
+来源产出的、尚未持久化的岗位数据；经 JobRepository 转换后才成为 JobPosting。
+_Avoid_: JobDTO, JobPayload, RawJobPosting
+
+**JobRepository（岗位仓库）**:
+JobPosting 在本机的唯一持久化入口，负责缓存、按 identityKey 去重 upsert 与刷新节流。
+_Avoid_: JobStore, JobCache, JobManager
+
+**JobQuery（岗位查询）**:
+与具体来源解耦的岗位查询条件，包含关键字、分类和数量。
+_Avoid_: SearchParams, JobFilter
+
 **Application（申请记录）**:
 用户针对一个岗位建立的一条投递记录，承载状态、状态历史、截止日期、备注，并可选关联 JobPosting。
 _Avoid_: JobApplication, 投递（作为实体名时）
@@ -85,6 +101,10 @@ _Avoid_: SkillEntity（v1 不建实体）, SkillLabel
 **MatchResult（匹配结果）**:
 由 UserProfile 与 JobPosting 计算出的派生结果，包含分数、匹配技能、缺失技能、分项解释和 eligibility；不持久化在 Application 上。
 _Avoid_: MatchScore（只是其中一部分）
+
+**MatchingEngine（匹配引擎）**:
+由 UserProfile、JobPosting 和 SkillDictionary 计算 MatchResult 的纯计算模块；不读写存储。
+_Avoid_: MatchCalculator, Matcher
 
 **技能标签**:
 匹配解释中表示一项技能的小标签，分“已匹配/缺失”两种状态；是展示元素，不是领域实体。
