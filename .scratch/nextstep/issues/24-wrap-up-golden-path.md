@@ -51,6 +51,7 @@ xcodebuild -project NextStep.xcodeproj -scheme NextStep \
 - **Release 入口验证**：`xcodebuild -configuration Release -destination 'generic/platform=iOS Simulator' build` 成功；Release 可执行文件中 grep 不到「清空演示数据」「清空全部本地数据」，Debug `.debug.dylib` 中可找到 → Release 不含入口。
 - **模拟器实测**：Debug 构建安装并启动成功；截图见 `docs/images/overview-empty.png`。通过一次性、未提交的临时测试向 App 真实 on-disk store 写入虚构演示数据后，`simctl terminate` 再 `launch`，概览正常显示「明天 · 面试 · 一面」「后天 · 截止」、进行中/7 天内截止计数与最近更新，截图见 `docs/images/overview-seeded.png` → 启动/重启与数据留存已在真实 App 中验证。
 - **未能手动验证的部分（如实说明）**：当前环境没有 Simulator.app / DeviceHub 可交互窗口，System Events 无辅助功能权限，`simctl` 也不提供 tap 注入，因此无法在模拟器里实际点击 tab、粘贴 JD、导入申请或走状态/面试表单。Discover → 岗位详情匹配 → 导入 → 状态流转 → 面试的 UI 点击走查仍需人工完成；对应逻辑由 repository / ViewModel / MatchingEngine 测试与新增的黄金路径集成测试覆盖。三张占位截图也需在人工走查时替换。
+- **集成合并验证（2026-11-09）**：`ticket/24-wrap-up` 以 `--no-ff` 合入 `integration/nextstep-v1`，合并 commit `515be34`，无冲突；合并后全量测试通过（340 个测试函数 / 36 个 suite、设备级 `passedTests 570`、`failedTests 0`、`skippedTests 0`，iPhone 18 Pro / iOS 27.0，`** TEST SUCCEEDED **`）。
 
 ### 决策与说明
 
