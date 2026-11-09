@@ -22,6 +22,10 @@ final class AppContainer {
     /// The matching service, or nil when the bundled lexicon fails to load.
     var matchProvider: (any MatchProviding)?
 
+    /// The loaded matching lexicon shared by `MatchService` and the 我的 skill picker.
+    /// `nil` means matching and skill selection degrade to unavailable.
+    let matchingLexicon: MatchingLexicon?
+
     init(
         modelContainer: ModelContainer,
         dateProvider: any DateProvider = SystemDateProvider(),
@@ -56,21 +60,26 @@ final class AppContainer {
             jobSourceFactory: resolvedFactory
         )
 
+        let lexicon: MatchingLexicon?
+        do {
+            lexicon = try matchingLexiconLoader.load()
+        } catch {
+            lexicon = nil
+            AppLogger.matching.error(
+                "Matching lexicon unavailable; matching and skill selection disabled: \(String(describing: error), privacy: .public)"
+            )
+        }
+        self.matchingLexicon = lexicon
+
         if let matchProvider {
             self.matchProvider = matchProvider
+        } else if let lexicon {
+            self.matchProvider = MatchService(
+                profileRepository: resolvedProfileRepository,
+                lexicon: lexicon
+            )
         } else {
-            do {
-                let lexicon = try matchingLexiconLoader.load()
-                self.matchProvider = MatchService(
-                    profileRepository: resolvedProfileRepository,
-                    lexicon: lexicon
-                )
-            } catch {
-                AppLogger.matching.error(
-                    "Matching lexicon unavailable; matching disabled: \(String(describing: error), privacy: .public)"
-                )
-                self.matchProvider = nil
-            }
+            self.matchProvider = nil
         }
     }
 
