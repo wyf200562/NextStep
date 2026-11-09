@@ -14,7 +14,7 @@
 - [x] 断网时用缓存 + 粘贴虚构 iOS 实习 JD 仍能完成流程；测试全绿。（离线/缓存/手动粘贴路径由单测与 VM 测试覆盖；UI 全流程同上一项留待人工走查。）
 
 ## Answer
-日期：2026-11-09。实现 commit：`73ba200`（debug 清空演示数据）、`2138284`（中文文案与空状态巡检）、`d0d96aa`（README / docs/design / LICENSE / 截图）、`c3a91b0`（黄金路径端到端集成测试），分支 `ticket/24-wrap-up`（基于 integration/nextstep-v1 `131ffd4`）。
+日期：2026-11-09。实现 commit：`73ba200`（debug 清空演示数据）、`2138284`（中文文案与空状态巡检）、`d0d96aa`（README / docs/design / LICENSE / 截图）、`c3a91b0`（黄金路径端到端集成测试）、`ceac889`（状态历史完成按钮改用非弃用 API），分支 `ticket/24-wrap-up`（基于 integration/nextstep-v1 `131ffd4`）。
 
 ### 交付内容
 
@@ -46,7 +46,7 @@ xcodebuild -project NextStep.xcodeproj -scheme NextStep \
   -collect-test-diagnostics never -parallel-testing-enabled NO test
 ```
 
-结果：exit 0，`** TEST SUCCEEDED **`；340 个测试函数 / 25 个 suite、设备级 `passedTests 570`、`failedTests 0`、`skippedTests 0`（iPhone 18 Pro Max / iOS 27.0）。新增 4 个测试函数（DemoDataResetter 3 + GoldenPath 1），既有测试未弱化。
+结果：exit 0，`** TEST SUCCEEDED **`；340 个测试函数 / 36 个 suite、设备级 `passedTests 570`、`failedTests 0`、`skippedTests 0`（iPhone 18 Pro Max / iOS 27.0）。新增 4 个测试函数（DemoDataResetter 3 + GoldenPath 1），既有测试未弱化。
 
 - **Release 入口验证**：`xcodebuild -configuration Release -destination 'generic/platform=iOS Simulator' build` 成功；Release 可执行文件中 grep 不到「清空演示数据」「清空全部本地数据」，Debug `.debug.dylib` 中可找到 → Release 不含入口。
 - **模拟器实测**：Debug 构建安装并启动成功；截图见 `docs/images/overview-empty.png`。通过一次性、未提交的临时测试向 App 真实 on-disk store 写入虚构演示数据后，`simctl terminate` 再 `launch`，概览正常显示「明天 · 面试 · 一面」「后天 · 截止」、进行中/7 天内截止计数与最近更新，截图见 `docs/images/overview-seeded.png` → 启动/重启与数据留存已在真实 App 中验证。
@@ -58,4 +58,4 @@ xcodebuild -project NextStep.xcodeproj -scheme NextStep \
 - **清空后建议重启**：SwiftData `@Query` 页面会立即更新为空，但已存在的 ViewModel（如 ProfileViewModel）可能持有已删除模型；提示文案明确要求重启以完全回到首次启动状态，避免在旧引用上继续保存。
 - **截图诚实性**：只把真实模拟器画面标为截图；无法驱动的三屏使用明确标注的占位 SVG，并在 README 与 Answer 中说明，不伪造。
 - **GitHub 地址**：仓库无 remote、用户 GitHub 账号未知，继续保留中性占位 `AppInfo.provisionalGitHubURL = https://github.com/`，README 使用同一占位；不虚构用户名或仓库 URL。
-- **剩余人工步骤（2 项）**：① 替换 GitHub 仓库地址并 push / 公开仓库（如需 `v1.0` tag 一并打）；② 在模拟器人工走一遍 UI 黄金路径，并替换 3 张占位截图为真实截图。除此之外的代码、文档、License、测试均已就位。
+- **剩余人工步骤**：① **必须的发布步骤**：仓库没有 remote、GitHub 账号未知，需由用户替换 `AppInfo.provisionalGitHubURL` 与 README 中的中性占位 `https://github.com/`，然后 push / 公开仓库（如需 `v1.0` tag 一并打）；② **验收建议**：在模拟器人工点击走一遍 UI 黄金路径，并用真实截图替换 3 张占位图——这是自动化环境无法替代的人工验收，不影响代码、文档、License、测试的完成状态。
