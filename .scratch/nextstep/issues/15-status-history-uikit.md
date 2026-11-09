@@ -46,6 +46,8 @@ xcodebuild -project NextStep.xcodeproj -scheme NextStep \
 
 结果：`** TEST SUCCEEDED **`，167 个测试函数 / 348 个参数化用例全部通过，0 失败 0 跳过（新增 3 个测试函数、8 个用例：初始/普通记录与中文状态名 6 例、备注 trim/缺失、固定时区时间格式）。App 在分配模拟器安装启动成功（4 个 tab 正常）。未写 XCUITest。
 
+集成分支合并：`4110114`（Discover 相关切片）合入后无冲突，全量重跑 182 个测试函数 / 378 个参数化用例全部通过，0 失败 0 跳过。
+
 ### 决策与说明
 
 - 排序不在页面内重排：spec 明确 repository 提供已排序历史，页面按 snapshot 顺序展示；既有仓库测试已覆盖降序与同时间 id 兜底。
