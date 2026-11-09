@@ -27,7 +27,8 @@ struct ApplicationDetailView: View {
         _viewModel = State(initialValue: ApplicationDetailViewModel(
             repository: container.applicationRepository,
             dateProvider: container.dateProvider,
-            applicationID: applicationID
+            applicationID: applicationID,
+            matchProvider: container.matchProvider
         ))
     }
 
@@ -202,8 +203,9 @@ struct ApplicationDetailView: View {
                 }
             }
 
-            // Associated posting summary (ticket 21); the match summary is ticket 22.
-            // When the posting is missing, the snapshot sections above remain the only source.
+            // Associated posting summary (ticket 21) and its recomputed compact match summary
+            // (ticket 22). When the posting is missing, the snapshot sections above remain the
+            // only source and no match summary renders.
             if let summary = ApplicationJobPostingSummary(jobPosting: application.jobPosting) {
                 Section("关联岗位") {
                     LabeledContent("职位", value: summary.title)
@@ -214,6 +216,7 @@ struct ApplicationDetailView: View {
                             Label("打开原岗位", systemImage: "link")
                         }
                     }
+                    matchSummaryRow
                 }
             }
 
@@ -239,6 +242,28 @@ struct ApplicationDetailView: View {
             }
         } message: {
             Text("已添加未来的面试轮次。")
+        }
+    }
+
+    /// Compact, recomputed match explanation for the associated posting; hidden when the profile
+    /// gate is unmet or matching is unavailable, with a prompt instead.
+    @ViewBuilder
+    private var matchSummaryRow: some View {
+        switch viewModel.matchAvailability {
+        case .ready:
+            if let match = viewModel.matchResult {
+                CompactMatchSummary(match: match)
+            }
+        case .profileIncomplete:
+            Button {
+                container.router.openProfile()
+            } label: {
+                Label("完善画像后查看匹配", systemImage: "person.crop.circle")
+            }
+        case .unavailable:
+            Label("匹配暂不可用", systemImage: "sparkles.slash")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
     }
 

@@ -15,6 +15,7 @@ final class ApplicationDetailViewModel {
     private let repository: any ApplicationRepository
     private let dateProvider: any DateProvider
     private let applicationID: UUID
+    private let matchProvider: (any MatchProviding)?
 
     private(set) var state: LoadState<Application> = .idle
     private(set) var isChangingStatus = false
@@ -26,14 +27,20 @@ final class ApplicationDetailViewModel {
     /// Chinese copy for a failed status change, round write, or deletion; raw errors are never shown.
     private(set) var actionErrorMessage: String?
 
+    /// Derived, never persisted; recomputed for the associated job on every load/refresh.
+    private(set) var matchResult: MatchResult?
+    private(set) var matchAvailability: MatchAvailability = .unavailable
+
     init(
         repository: any ApplicationRepository,
         dateProvider: any DateProvider,
-        applicationID: UUID
+        applicationID: UUID,
+        matchProvider: (any MatchProviding)? = nil
     ) {
         self.repository = repository
         self.dateProvider = dateProvider
         self.applicationID = applicationID
+        self.matchProvider = matchProvider
     }
 
     var application: Application? {
@@ -272,15 +279,44 @@ final class ApplicationDetailViewModel {
         do {
             if let application = try repository.application(id: applicationID) {
                 state = .loaded(application)
+                evaluateMatch(for: application.jobPosting)
             } else {
                 state = .failed(RepositoryError.loadFailed)
+                clearMatch()
             }
         } catch {
             AppLogger.ui.error(
                 "Failed to load application detail: \(error.localizedDescription, privacy: .public)"
             )
             state = .failed(error)
+            clearMatch()
         }
+    }
+
+    /// Recomputes the compact match summary for the associated posting; nothing is persisted.
+    private func evaluateMatch(for posting: JobPosting?) {
+        guard let posting, let matchProvider else {
+            clearMatch()
+            return
+        }
+        do {
+            if let result = try matchProvider.evaluate(job: posting) {
+                matchResult = result
+                matchAvailability = .ready
+            } else {
+                clearMatch(with: .profileIncomplete)
+            }
+        } catch {
+            clearMatch()
+            AppLogger.matching.error(
+                "Failed to evaluate an application's posting: \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+
+    private func clearMatch(with availability: MatchAvailability = .unavailable) {
+        matchResult = nil
+        matchAvailability = availability
     }
 
     private static func normalizedText(_ text: String?) -> String? {

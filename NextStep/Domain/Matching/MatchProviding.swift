@@ -11,4 +11,10 @@ protocol MatchProviding: AnyObject {
 
     /// Results keyed by `JobPosting.identityKey`; postings without a result are omitted.
     func evaluate(jobs: [JobPosting]) throws -> [String: MatchResult]
+
+    /// Gate-independent eligibility for grouping postings when the profile is incomplete.
+    ///
+    /// Only the job-type and location rules are applied; resolving skills and the profile gate are
+    /// skipped. Keys are `JobPosting.identityKey`.
+    func eligibility(jobs: [JobPosting]) throws -> [String: Eligibility]
 }

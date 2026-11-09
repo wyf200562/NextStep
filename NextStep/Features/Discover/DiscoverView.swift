@@ -2,7 +2,8 @@ import SwiftUI
 import UIKit
 
 /// Discover tab: persistent sample-mode header, paste-a-JD entry, internship filter, and the
-/// cached job list. Refresh, matching, and grouped eligibility arrive in tickets 21–23.
+/// eligibility-grouped job list with match explanations. Refresh, TTL, and quota handling belong to
+/// ticket 23.
 struct DiscoverView: View {
     @Environment(AppContainer.self) private var container
     @State private var viewModel: DiscoverViewModel?
@@ -23,13 +24,15 @@ struct DiscoverView: View {
             guard viewModel == nil else { return }
             let model = DiscoverViewModel(
                 jobRepository: container.jobRepository,
-                dateProvider: container.dateProvider
+                dateProvider: container.dateProvider,
+                matchProvider: container.matchProvider
             )
             model.loadCachedJobs()
             viewModel = model
         }
         .onAppear {
             // Returning from the import form or a detail refresh shows newly saved jobs.
+            // Matches are recomputed on every cache read, never persisted.
             viewModel?.loadCachedJobs()
         }
     }
@@ -48,7 +51,10 @@ struct DiscoverView: View {
                     }
                 } else {
                     OnlyInternshipsToggle(viewModel: viewModel)
-                    JobsSection(viewModel: viewModel)
+                    GroupedJobsSection(
+                        viewModel: viewModel,
+                        skillDictionary: container.matchingLexicon?.skillDictionary
+                    )
                 }
             }
             .padding(.horizontal, 20)
@@ -185,8 +191,9 @@ private struct OnlyInternshipsToggle: View {
 
 // MARK: - Jobs and states
 
-private struct JobsSection: View {
+private struct GroupedJobsSection: View {
     let viewModel: DiscoverViewModel
+    let skillDictionary: SkillDictionary?
 
     @ViewBuilder
     var body: some View {
@@ -200,15 +207,357 @@ private struct JobsSection: View {
                 viewModel.onlyInternships = false
             }
         } else {
-            LazyVStack(spacing: 10) {
-                ForEach(viewModel.visibleJobs, id: \.id) { job in
-                    NavigationLink(value: DiscoverRoute.jobDetail(jobID: job.id)) {
-                        JobPostingCard(job: job)
+            VStack(alignment: .leading, spacing: 12) {
+                EligibleGroup(
+                    viewModel: viewModel,
+                    skillDictionary: skillDictionary
+                )
+                IneligibleGroup(viewModel: viewModel)
+            }
+        }
+    }
+}
+
+// MARK: - Eligible group
+
+private struct EligibleGroup: View {
+    let viewModel: DiscoverViewModel
+    let skillDictionary: SkillDictionary?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("适合你")
+                    .font(.title3.bold())
+                Spacer(minLength: 8)
+                if viewModel.matchAvailability == .ready, !viewModel.eligibleJobs.isEmpty {
+                    Text("\(viewModel.eligibleJobs.count) 条")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if viewModel.eligibleJobs.isEmpty {
+                EligibleInlineEmptyState()
+            } else {
+                LazyVStack(spacing: 10) {
+                    ForEach(viewModel.eligibleJobs, id: \.job.id) { item in
+                        NavigationLink(value: DiscoverRoute.jobDetail(jobID: item.job.id)) {
+                            EligibleJobCard(
+                                item: item,
+                                availability: viewModel.matchAvailability,
+                                skillDictionary: skillDictionary
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct EligibleJobCard: View {
+    let item: DiscoverJobItem
+    let availability: MatchAvailability
+    let skillDictionary: SkillDictionary?
+
+    private var job: JobPosting { item.job }
+
+    private var presentation: MatchCardPresentation {
+        MatchCardPresenter.eligible(
+            match: item.match,
+            availability: availability,
+            dictionary: skillDictionary
+        )
+    }
+
+    private var bandTint: Color {
+        item.match?.band?.tint ?? .secondary
+    }
+
+    private var metadata: String {
+        var parts: [String] = []
+        if let location = job.location, !location.isEmpty {
+            parts.append(location)
+        }
+        if let type = JobTypeOption.displayName(forJobType: job.jobType) {
+            parts.append(type)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                CompanyInitials(name: job.companyName)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(job.companyName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Text(job.title)
+                        .font(.subheadline.weight(.semibold))
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 6)
+
+                if let scoreText = presentation.scoreText {
+                    MatchScorePill(text: scoreText, tint: bandTint)
+                }
+            }
+
+            HStack(spacing: 6) {
+                if !metadata.isEmpty {
+                    Text(metadata)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                DiscoverSourceBadge(method: job.intakeMethod)
+                if presentation.isLowConfidence {
+                    Text("低置信度")
+                        .font(.caption2.weight(.bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.orange.opacity(0.15)))
+                        .foregroundStyle(Color.orange)
+                }
+                Spacer(minLength: 0)
+            }
+
+            if let bandText = presentation.bandText {
+                HStack(spacing: 6) {
+                    Text(bandText)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(bandTint)
+                    if let countText = presentation.matchCountText {
+                        Text("· \(countText)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            if !presentation.matchedTags.isEmpty || !presentation.missingTags.isEmpty {
+                MatchSkillTagFlow(
+                    tags: presentation.matchedTags + presentation.missingTags,
+                    extraMatchedCount: presentation.extraMatchedCount,
+                    extraMissingCount: presentation.extraMissingCount
+                )
+            }
+
+            if let fallbackMessage = presentation.fallbackMessage, !fallbackMessage.isEmpty {
+                Text(fallbackMessage)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+            } else if let reason = presentation.reason {
+                Text(reason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color(uiColor: .separator).opacity(0.35), lineWidth: 0.5)
+        )
+    }
+}
+
+// MARK: - Ineligible group
+
+private struct IneligibleGroup: View {
+    let viewModel: DiscoverViewModel
+
+    var body: some View {
+        if !viewModel.ineligibleJobs.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("不符合条件 · \(viewModel.ineligibleJobs.count) 条")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+
+                LazyVStack(spacing: 8) {
+                    ForEach(viewModel.visibleIneligibleJobs, id: \.job.id) { item in
+                        NavigationLink(value: DiscoverRoute.jobDetail(jobID: item.job.id)) {
+                            IneligibleJobRow(
+                                item: item,
+                                availability: viewModel.matchAvailability
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                if viewModel.hasMoreIneligible {
+                    Button {
+                        viewModel.toggleIneligibleExpansion()
+                    } label: {
+                        Text(
+                            viewModel.isShowingAllIneligible
+                                ? "收起"
+                                : "展开全部 \(viewModel.ineligibleJobs.count) 条"
+                        )
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color(uiColor: .secondarySystemFill))
+                        )
+                        .foregroundStyle(.primary)
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
+    }
+}
+
+private struct IneligibleJobRow: View {
+    let item: DiscoverJobItem
+    let availability: MatchAvailability
+
+    private var job: JobPosting { item.job }
+
+    private var presentation: IneligibleCardPresentation {
+        MatchCardPresenter.ineligible(
+            job: job,
+            match: item.match,
+            eligibility: item.eligibility,
+            availability: availability
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(job.title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Text("\(job.companyName) · \(presentation.sourceText)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 6)
+                Text("不符合")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.red.opacity(0.12)))
+                    .foregroundStyle(Color.red)
+            }
+
+            HStack(spacing: 4) {
+                Text(presentation.reasonText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.red)
+                if let skillCountText = presentation.skillCountText {
+                    Text("· \(skillCountText)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(11)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.red.opacity(0.18), lineWidth: 0.5)
+        )
+    }
+}
+
+private struct EligibleInlineEmptyState: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("这一批岗位里没有适合你的")
+                .font(.subheadline.weight(.semibold))
+            Text("条件不符的岗位仍然列在下方。也可以粘贴一份 JD，用本地匹配看看。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            NavigationLink(value: DiscoverRoute.manualImport) {
+                Text("粘贴 JD")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.accentColor)
+                    )
+                    .foregroundStyle(Color.white)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.accentColor.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(
+                    Color.accentColor.opacity(0.35),
+                    style: StrokeStyle(lineWidth: 1, dash: [5, 4])
+                )
+        )
+    }
+}
+
+// MARK: - Shared card pieces
+
+private struct CompanyInitials: View {
+    let name: String
+
+    private var initials: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "?" : String(trimmed.prefix(2)).uppercased()
+    }
+
+    var body: some View {
+        Text(initials)
+            .font(.caption.weight(.bold))
+            .frame(width: 34, height: 34)
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(Color(uiColor: .tertiarySystemFill))
+            )
+            .foregroundStyle(.secondary)
+    }
+}
+
+private struct DiscoverSourceBadge: View {
+    let method: JobIntakeMethod
+
+    private var color: Color {
+        method == .remotive ? .secondary : .accentColor
+    }
+
+    var body: some View {
+        Text(method.displayName)
+            .font(.caption2.weight(.bold))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(color.opacity(0.13)))
+            .foregroundStyle(color)
+            .lineLimit(1)
     }
 }
 
@@ -313,98 +662,3 @@ private struct CacheErrorCard: View {
     }
 }
 
-// MARK: - Job card
-
-private struct JobPostingCard: View {
-    let job: JobPosting
-
-    private var sourceColor: Color {
-        job.intakeMethod == .remotive ? .secondary : .accentColor
-    }
-
-    private var initials: String {
-        let company = job.companyName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return company.isEmpty ? "?" : String(company.prefix(2)).uppercased()
-    }
-
-    private var metadata: String {
-        var parts: [String] = []
-        if let location = job.location, !location.isEmpty {
-            parts.append(location)
-        }
-        if let type = JobTypeOption.displayName(forJobType: job.jobType) {
-            parts.append(type)
-        }
-        return parts.joined(separator: " · ")
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 10) {
-                Text(initials)
-                    .font(.caption.weight(.bold))
-                    .frame(width: 34, height: 34)
-                    .background(
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .fill(Color(uiColor: .tertiarySystemFill))
-                    )
-                    .foregroundStyle(.secondary)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(job.companyName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Text(job.title)
-                        .font(.subheadline.weight(.semibold))
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(2)
-                }
-
-                Spacer(minLength: 6)
-
-                Text(job.intakeMethod.displayName)
-                    .font(.caption2.weight(.bold))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(sourceColor.opacity(0.13)))
-                    .foregroundStyle(sourceColor)
-            }
-
-            if !metadata.isEmpty {
-                Text(metadata)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            if !job.tags.isEmpty {
-                HStack(spacing: 5) {
-                    ForEach(Array(job.tags.prefix(3)), id: \.self) { tag in
-                        Text(tag)
-                            .font(.caption2)
-                            .lineLimit(1)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(Capsule().fill(Color(uiColor: .tertiarySystemFill)))
-                            .foregroundStyle(.secondary)
-                    }
-                    if job.tags.count > 3 {
-                        Text("+\(job.tags.count - 3)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemGroupedBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color(uiColor: .separator).opacity(0.35), lineWidth: 0.5)
-        )
-    }
-}
