@@ -18,6 +18,7 @@ final class AppContainer {
     let userProfileRepository: any UserProfileRepository
     let jobRepository: any JobRepository
     let jobSourceFactory: JobSourceFactory
+    let refreshLedger: RefreshLedger
 
     /// The matching service, or nil when the bundled lexicon fails to load.
     var matchProvider: (any MatchProviding)?
@@ -34,6 +35,7 @@ final class AppContainer {
         userProfileRepository: (any UserProfileRepository)? = nil,
         jobRepository: (any JobRepository)? = nil,
         jobSourceFactory: JobSourceFactory? = nil,
+        refreshLedger: RefreshLedger? = nil,
         matchProvider: (any MatchProviding)? = nil,
         matchingLexiconLoader: MatchingLexiconLoader = MatchingLexiconLoader()
     ) {
@@ -50,14 +52,17 @@ final class AppContainer {
             ?? SwiftDataUserProfileRepository(context: modelContainer.mainContext)
         self.userProfileRepository = resolvedProfileRepository
         let resolvedFactory = jobSourceFactory ?? JobSourceFactory(
-            makeRemote: { _ in PlaceholderRemoteJobSource() },
+            makeRemote: { query in RemotiveJobSource(query: query) },
             makeManual: { ManualJobSource(input: $0) }
         )
         self.jobSourceFactory = resolvedFactory
+        let resolvedLedger = refreshLedger ?? RefreshLedger(dateProvider: dateProvider)
+        self.refreshLedger = resolvedLedger
         self.jobRepository = jobRepository ?? SwiftDataJobRepository(
             context: modelContainer.mainContext,
             dateProvider: dateProvider,
-            jobSourceFactory: resolvedFactory
+            jobSourceFactory: resolvedFactory,
+            refreshLedger: resolvedLedger
         )
 
         let lexicon: MatchingLexicon?

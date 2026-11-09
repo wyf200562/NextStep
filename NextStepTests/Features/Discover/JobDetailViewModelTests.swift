@@ -107,6 +107,36 @@ struct JobDetailViewModelTests {
         #expect(viewModel.importAction == .importNew)
     }
 
+    @Test func loadCountsCachedRemotiveSamplesForTheSourceNote() {
+        let posting = makePosting(intakeMethod: .remotive)
+        let secondRemotive = JobPosting(
+            identityKey: "remotive:2",
+            title: "iOS Intern 2",
+            companyName: "Acme",
+            intakeMethod: .remotive,
+            descriptionPlainText: "JD",
+            createdAt: now
+        )
+        let manual = JobPosting(
+            identityKey: "manual:00000000-0000-0000-0000-000000000001",
+            title: "Manual Intern",
+            companyName: "Acme",
+            intakeMethod: .manual,
+            descriptionPlainText: "JD",
+            createdAt: now
+        )
+        let jobRepository = FakeJobRepository()
+        jobRepository.cachedJobsResult = .success([posting, secondRemotive, manual])
+        let viewModel = makeViewModel(
+            jobRepository: jobRepository,
+            applicationRepository: FakeApplicationRepository()
+        )
+
+        viewModel.load()
+
+        #expect(viewModel.remotiveSampleCount == 2)
+    }
+
     @Test(arguments: [
         ApplicationStatus.wishlist,
         .applied,
