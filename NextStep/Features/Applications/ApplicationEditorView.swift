@@ -1,17 +1,32 @@
 import SwiftUI
 
-/// Create-application form. Owns an `ApplicationEditorViewModel`; writes go through the repository.
+/// Application form used for both creation and editing. Owns an `ApplicationEditorViewModel`;
+/// writes go through the repository. Status editing is only offered in create mode.
 struct ApplicationEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: ApplicationEditorViewModel
     @State private var isConfirmingDiscard = false
     private let onSaved: (UUID) -> Void
 
-    init(container: AppContainer, onSaved: @escaping (UUID) -> Void) {
-        _viewModel = State(initialValue: ApplicationEditorViewModel(
-            repository: container.applicationRepository,
-            dateProvider: container.dateProvider
-        ))
+    init(
+        container: AppContainer,
+        application: Application? = nil,
+        onSaved: @escaping (UUID) -> Void
+    ) {
+        let repository = container.applicationRepository
+        let dateProvider = container.dateProvider
+        if let application {
+            _viewModel = State(initialValue: ApplicationEditorViewModel(
+                repository: repository,
+                dateProvider: dateProvider,
+                application: application
+            ))
+        } else {
+            _viewModel = State(initialValue: ApplicationEditorViewModel(
+                repository: repository,
+                dateProvider: dateProvider
+            ))
+        }
         self.onSaved = onSaved
     }
 
@@ -27,20 +42,24 @@ struct ApplicationEditorView: View {
                     inlineError(viewModel.roleError)
                 }
 
-                Section("状态") {
-                    Picker("初始状态", selection: $model.initialStatus) {
-                        ForEach(ApplicationStatus.allCases) { status in
-                            Text(status.displayName).tag(status)
+                // Status changes only through the detail flow so the state machine and history stay
+                // consistent; edit mode must not expose it.
+                if !viewModel.isEditing {
+                    Section("状态") {
+                        Picker("初始状态", selection: $model.initialStatus) {
+                            ForEach(ApplicationStatus.allCases) { status in
+                                Text(status.displayName).tag(status)
+                            }
                         }
-                    }
 
-                    if viewModel.showsStatusDate {
-                        DatePicker(
-                            "状态日期",
-                            selection: $model.statusDate,
-                            in: ...viewModel.currentDate,
-                            displayedComponents: .date
-                        )
+                        if viewModel.showsStatusDate {
+                            DatePicker(
+                                "状态日期",
+                                selection: $model.statusDate,
+                                in: ...viewModel.currentDate,
+                                displayedComponents: .date
+                            )
+                        }
                     }
                 }
 
@@ -81,7 +100,7 @@ struct ApplicationEditorView: View {
                     }
                 }
             }
-            .navigationTitle("新建申请")
+            .navigationTitle(viewModel.isEditing ? "编辑申请" : "新建申请")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

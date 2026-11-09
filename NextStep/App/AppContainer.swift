@@ -17,9 +17,9 @@ final class AppContainer {
     let applicationRepository: any ApplicationRepository
     let userProfileRepository: any UserProfileRepository
     let jobRepository: any JobRepository
+    let jobSourceFactory: JobSourceFactory
 
-    /// Reserved slots for services owned by later slices (ingestion and matching).
-    var jobSourceFactory: JobSourceFactory?
+    /// The matching service, or nil when the bundled lexicon fails to load.
     var matchProvider: (any MatchProviding)?
 
     /// The loaded matching lexicon shared by `MatchService` and the 我的 skill picker.
@@ -49,8 +49,16 @@ final class AppContainer {
         let resolvedProfileRepository = userProfileRepository
             ?? SwiftDataUserProfileRepository(context: modelContainer.mainContext)
         self.userProfileRepository = resolvedProfileRepository
-        self.jobRepository = jobRepository ?? UnavailableJobRepository()
-        self.jobSourceFactory = jobSourceFactory
+        let resolvedFactory = jobSourceFactory ?? JobSourceFactory(
+            makeRemote: { _ in PlaceholderRemoteJobSource() },
+            makeManual: { ManualJobSource(input: $0) }
+        )
+        self.jobSourceFactory = resolvedFactory
+        self.jobRepository = jobRepository ?? SwiftDataJobRepository(
+            context: modelContainer.mainContext,
+            dateProvider: dateProvider,
+            jobSourceFactory: resolvedFactory
+        )
 
         let lexicon: MatchingLexicon?
         do {

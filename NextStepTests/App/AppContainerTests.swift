@@ -27,7 +27,10 @@ struct AppContainerTests {
         #expect(container.dateProvider.now == fixedNow)
         #expect(container.router === router)
         #expect(container.router.selectedTab == .applications)
-        #expect(container.jobSourceFactory == nil)
+        #expect(container.jobSourceFactory.makeManual(
+            ManualJobInput(title: "iOS Intern", companyName: "Acme", descriptionPlainText: "JD")
+        ).intakeMethod == .manual)
+        #expect(container.jobRepository is SwiftDataJobRepository)
         let provider = try #require(container.matchProvider)
         #expect(provider is MatchService)
     }
@@ -81,12 +84,10 @@ struct AppContainerTests {
         #expect(try container.applicationRepository.allApplications().isEmpty)
     }
 
-    @Test func placeholderJobRepositoryFailsWithTypedErrorsInsteadOfCrashing() throws {
+    @Test func inMemoryContainerProvidesJobRepositoryReadingTheCache() throws {
         let container = try AppContainer.makeInMemory()
 
-        #expect(throws: RepositoryError.unavailable) {
-            _ = try container.jobRepository.cachedJobs()
-        }
+        #expect(try container.jobRepository.cachedJobs().isEmpty)
         #expect(container.jobRepository.lastRefreshAt(for: .remotive) == nil)
     }
 }

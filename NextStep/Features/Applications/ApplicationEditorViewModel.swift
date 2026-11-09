@@ -2,15 +2,36 @@ import Foundation
 import Observation
 import os
 
-/// Owns the create-application form: draft fields, inline validation, save state, and the
-/// unsaved-changes signal used to confirm discarding edits.
+/// Owns the application form in both create and edit modes: draft fields, inline validation, save
+/// state, and the unsaved-changes signal used to confirm discarding edits.
+///
+/// Edit mode prefills the draft from the application snapshot and saves through
+/// `ApplicationRepository.updateApplication`. Status is intentionally not editable here; it only
+/// changes through the detail status flow so the state machine and history stay consistent.
 ///
 /// The ViewModel never touches `ModelContext`; writes go through `ApplicationRepository`.
 @Observable
 @MainActor
 final class ApplicationEditorViewModel {
+    private enum Mode {
+        case create
+        case edit(Application)
+    }
+
+    /// The values a save would persist, used to decide whether edits would be lost.
+    private struct Draft: Equatable {
+        let companyName: String
+        let roleTitle: String
+        let jobURLText: String
+        let locationText: String
+        let notesText: String
+        let deadline: Date?
+    }
+
     private let repository: any ApplicationRepository
     private let dateProvider: any DateProvider
+    private let mode: Mode
+    private let initialDraft: Draft?
 
     var companyName = ""
     var roleTitle = ""
@@ -31,9 +52,12 @@ final class ApplicationEditorViewModel {
     private(set) var isSaving = false
     private(set) var savedApplicationID: UUID?
 
+    /// Create mode: blank draft, initial status defaults to wishlist.
     init(repository: any ApplicationRepository, dateProvider: any DateProvider) {
         self.repository = repository
         self.dateProvider = dateProvider
+        self.mode = .create
+        self.initialDraft = nil
         self.statusDate = dateProvider.now
         let today = dateProvider.calendar.startOfDay(for: dateProvider.now)
         self.deadlineDay = today
@@ -43,6 +67,55 @@ final class ApplicationEditorViewModel {
             second: 0,
             of: today
         ) ?? today
+    }
+
+    /// Edit mode: prefilled from the snapshot; status is not editable and is not saved.
+    init(
+        repository: any ApplicationRepository,
+        dateProvider: any DateProvider,
+        application: Application
+    ) {
+        self.repository = repository
+        self.dateProvider = dateProvider
+        self.mode = .edit(application)
+
+        let calendar = dateProvider.calendar
+        let today = calendar.startOfDay(for: dateProvider.now)
+        let deadline = application.deadline
+        let deadlineDay = deadline.map { calendar.startOfDay(for: $0) } ?? today
+        let defaultTime = calendar.date(
+            bySettingHour: 9,
+            minute: 0,
+            second: 0,
+            of: deadlineDay
+        ) ?? deadlineDay
+        let timeComponents = deadline.map { calendar.dateComponents([.hour, .minute], from: $0) }
+        let usesDefaultTime = timeComponents.map { $0.hour == 9 && $0.minute == 0 } ?? true
+
+        self.companyName = application.companyName
+        self.roleTitle = application.roleTitle
+        self.initialStatus = application.status
+        self.statusDate = dateProvider.now
+        self.hasDeadline = deadline != nil
+        self.deadlineDay = deadlineDay
+        self.includesDeadlineTime = !usesDefaultTime
+        self.deadlineTime = usesDefaultTime ? defaultTime : (deadline ?? defaultTime)
+        self.jobURLText = application.jobURL?.absoluteString ?? ""
+        self.locationText = application.location ?? ""
+        self.notesText = application.notes ?? ""
+        self.initialDraft = Draft(
+            companyName: application.companyName,
+            roleTitle: application.roleTitle,
+            jobURLText: application.jobURL?.absoluteString ?? "",
+            locationText: application.location ?? "",
+            notesText: application.notes ?? "",
+            deadline: application.deadline
+        )
+    }
+
+    var isEditing: Bool {
+        if case .edit = mode { return true }
+        return false
     }
 
     /// The status date is only editable for historical backfill; wishlist means "not applied yet".
@@ -75,7 +148,10 @@ final class ApplicationEditorViewModel {
 
     /// True when dismissing the form would lose user input.
     var hasUnsavedChanges: Bool {
-        !trimmed(companyName).isEmpty
+        if let initialDraft {
+            return currentDraft != initialDraft
+        }
+        return !trimmed(companyName).isEmpty
             || !trimmed(roleTitle).isEmpty
             || initialStatus != .wishlist
             || hasDeadline
@@ -93,24 +169,49 @@ final class ApplicationEditorViewModel {
         defer { isSaving = false }
 
         do {
-            let application = try repository.createApplication(
-                companyName: trimmed(companyName),
-                roleTitle: trimmed(roleTitle),
-                initialStatus: initialStatus,
-                statusDate: showsStatusDate ? statusDate : dateProvider.now,
-                deadline: deadline,
-                jobURL: parsedJobURL,
-                location: nilIfBlank(locationText),
-                notes: nilIfBlank(notesText),
-                jobPosting: nil
-            )
-            savedApplicationID = application.id
+            switch mode {
+            case .create:
+                let application = try repository.createApplication(
+                    companyName: trimmed(companyName),
+                    roleTitle: trimmed(roleTitle),
+                    initialStatus: initialStatus,
+                    statusDate: showsStatusDate ? statusDate : dateProvider.now,
+                    deadline: deadline,
+                    jobURL: parsedJobURL,
+                    location: nilIfBlank(locationText),
+                    notes: nilIfBlank(notesText),
+                    jobPosting: nil
+                )
+                savedApplicationID = application.id
+            case .edit(let application):
+                try repository.updateApplication(
+                    application,
+                    companyName: trimmed(companyName),
+                    roleTitle: trimmed(roleTitle),
+                    jobURL: parsedJobURL,
+                    location: nilIfBlank(locationText),
+                    notes: nilIfBlank(notesText),
+                    deadline: deadline
+                )
+                savedApplicationID = application.id
+            }
         } catch {
             AppLogger.ui.error(
                 "Failed to save an application: \(error.localizedDescription, privacy: .public)"
             )
             saveErrorMessage = "保存失败，请重试"
         }
+    }
+
+    private var currentDraft: Draft {
+        Draft(
+            companyName: trimmed(companyName),
+            roleTitle: trimmed(roleTitle),
+            jobURLText: trimmed(jobURLText),
+            locationText: trimmed(locationText),
+            notesText: trimmed(notesText),
+            deadline: deadline
+        )
     }
 
     @discardableResult
