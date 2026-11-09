@@ -14,7 +14,10 @@ struct DiscoverTabView: View {
                     case .jobDetail(let jobID):
                         JobDetailView(jobID: jobID)
                     case .manualImport:
-                        ManualImportView()
+                        ManualImportView { jobID in
+                            // Replace the form with the new posting's detail; going back lands on Discover.
+                            path = [.jobDetail(jobID: jobID)]
+                        }
                     }
                 }
         }
