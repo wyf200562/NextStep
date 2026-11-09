@@ -6,8 +6,19 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		A1000000000000000000000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E3380897309C4EF60098086F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E338089E309C4EF60098086F;
+			remoteInfo = NextStep;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		E338089F309C4EF60098086F /* NextStep.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NextStep.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000009 /* NextStepTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NextStepTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +27,20 @@
 			path = NextStep;
 			sourceTree = "<group>";
 		};
+		A10000000000000000000001 /* NextStepTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = NextStepTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		E338089C309C4EF60098086F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		A10000000000000000000007 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
 			);
@@ -31,6 +52,7 @@
 			isa = PBXGroup;
 			children = (
 				E33808A1309C4EF60098086F /* NextStep */,
+				A10000000000000000000001 /* NextStepTests */,
 				E33808A0309C4EF60098086F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -39,6 +61,7 @@
 			isa = PBXGroup;
 			children = (
 				E338089F309C4EF60098086F /* NextStep.app */,
+				A10000000000000000000009 /* NextStepTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -64,6 +87,27 @@
 			productReference = E338089F309C4EF60098086F /* NextStep.app */;
 			productType = "com.apple.product-type.application";
 		};
+		A10000000000000000000002 /* NextStepTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000003 /* Build configuration list for PBXNativeTarget "NextStepTests" */;
+			buildPhases = (
+				A10000000000000000000006 /* Sources */,
+				A10000000000000000000007 /* Frameworks */,
+				A10000000000000000000008 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A1000000000000000000000B /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A10000000000000000000001 /* NextStepTests */,
+			);
+			name = NextStepTests;
+			productName = NextStepTests;
+			productReference = A10000000000000000000009 /* NextStepTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -76,6 +120,10 @@
 				TargetAttributes = {
 					E338089E309C4EF60098086F = {
 						CreatedOnToolsVersion = 27.0;
+					};
+					A10000000000000000000002 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = E338089E309C4EF60098086F;
 					};
 				};
 			};
@@ -94,12 +142,18 @@
 			projectRoot = "";
 			targets = (
 				E338089E309C4EF60098086F /* NextStep */,
+				A10000000000000000000002 /* NextStepTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		E338089D309C4EF60098086F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		A10000000000000000000008 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
 			);
@@ -112,7 +166,20 @@
 			files = (
 			);
 		};
+		A10000000000000000000006 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A1000000000000000000000B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E338089E309C4EF60098086F /* NextStep */;
+			targetProxy = A1000000000000000000000A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		E33808A8309C4EF80098086F /* Debug configuration for PBXProject "NextStep" */ = {
@@ -263,7 +330,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -295,8 +362,60 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		A10000000000000000000004 /* Debug configuration for PBXNativeTarget "NextStepTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = W7Z5X4YC9M;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = intern.NextStepTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NextStep.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NextStep";
+			};
+			name = Debug;
+		};
+		A10000000000000000000005 /* Release configuration for PBXNativeTarget "NextStepTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = W7Z5X4YC9M;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = intern.NextStepTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NextStep.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/NextStep";
 			};
 			name = Release;
 		};
@@ -316,6 +435,14 @@
 			buildConfigurations = (
 				E33808AB309C4EF80098086F /* Debug configuration for PBXNativeTarget "NextStep" */,
 				E33808AC309C4EF80098086F /* Release configuration for PBXNativeTarget "NextStep" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		A10000000000000000000003 /* Build configuration list for PBXNativeTarget "NextStepTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000004 /* Debug configuration for PBXNativeTarget "NextStepTests" */,
+				A10000000000000000000005 /* Release configuration for PBXNativeTarget "NextStepTests" */,
 			);
 			defaultConfigurationName = Release;
 		};
