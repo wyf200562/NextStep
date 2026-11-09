@@ -218,4 +218,169 @@ struct ApplicationEditorViewModelTests {
         viewModel.jobURLText = "https://example.com/jobs/7"
         #expect(viewModel.hasUnsavedChanges)
     }
+
+    // MARK: - Edit mode
+
+    private func makeEditingApplication(
+        status: ApplicationStatus = .applied,
+        deadline: Date? = nil
+    ) -> Application {
+        Application(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000013")!,
+            companyName: "星尘科技",
+            roleTitle: "iOS 开发实习生",
+            status: status,
+            createdAt: pastStatusDate,
+            lastModifiedAt: pastStatusDate,
+            deadline: deadline ?? calendar.date(
+                from: DateComponents(year: 2026, month: 11, day: 20, hour: 14, minute: 30)
+            ),
+            notes: "内推",
+            jobURL: URL(string: "https://example.com/jobs/42"),
+            location: "上海"
+        )
+    }
+
+    private func makeEditViewModel(
+        fake: FakeApplicationRepository,
+        application: Application
+    ) -> ApplicationEditorViewModel {
+        ApplicationEditorViewModel(
+            repository: fake,
+            dateProvider: FixedDateProvider(now: now, calendar: calendar),
+            application: application
+        )
+    }
+
+    @Test("create mode is not editing")
+    func createModeIsNotEditing() {
+        let viewModel = makeViewModel(fake: FakeApplicationRepository())
+
+        #expect(viewModel.isEditing == false)
+    }
+
+    @Test("edit mode prefills the draft from the application snapshot")
+    func editModePrefillsDraft() {
+        let application = makeEditingApplication()
+        let viewModel = makeEditViewModel(fake: FakeApplicationRepository(), application: application)
+
+        #expect(viewModel.isEditing)
+        #expect(viewModel.companyName == "星尘科技")
+        #expect(viewModel.roleTitle == "iOS 开发实习生")
+        #expect(viewModel.jobURLText == "https://example.com/jobs/42")
+        #expect(viewModel.locationText == "上海")
+        #expect(viewModel.notesText == "内推")
+        #expect(viewModel.hasDeadline)
+        #expect(viewModel.includesDeadlineTime)
+        #expect(viewModel.deadline == application.deadline)
+        #expect(viewModel.hasUnsavedChanges == false)
+    }
+
+    @Test("edit mode saves through updateApplication and never changes status")
+    func editModeSavesThroughUpdateApplication() {
+        let application = makeEditingApplication(status: .applied)
+        let fake = FakeApplicationRepository()
+        let viewModel = makeEditViewModel(fake: fake, application: application)
+        viewModel.companyName = " 新公司 "
+        viewModel.roleTitle = "新职位"
+        viewModel.locationText = " 北京 "
+        viewModel.notesText = " 改了备注 "
+        viewModel.jobURLText = " https://example.com/jobs/7 "
+        // The status picker is hidden in edit mode; even if it changes, save must ignore it.
+        viewModel.initialStatus = .offer
+
+        viewModel.save()
+
+        #expect(fake.createCalls.isEmpty)
+        #expect(fake.statusChangeCalls.isEmpty)
+        #expect(fake.updateCalls.count == 1)
+        let call = fake.updateCalls.first
+        #expect(call?.application === application)
+        #expect(call?.companyName == "新公司")
+        #expect(call?.roleTitle == "新职位")
+        #expect(call?.location == "北京")
+        #expect(call?.notes == "改了备注")
+        #expect(call?.jobURL == URL(string: "https://example.com/jobs/7"))
+        #expect(call?.deadline == application.deadline)
+        #expect(application.status == .applied)
+        #expect(viewModel.savedApplicationID == application.id)
+        #expect(viewModel.saveErrorMessage == nil)
+    }
+
+    @Test("edit mode validates the same required fields and URL as create mode")
+    func editModeValidatesLikeCreateMode() {
+        let fake = FakeApplicationRepository()
+        let viewModel = makeEditViewModel(fake: fake, application: makeEditingApplication())
+
+        viewModel.companyName = "   "
+        viewModel.save()
+        #expect(viewModel.companyError == "请填写公司")
+        #expect(fake.updateCalls.isEmpty)
+
+        viewModel.companyName = "星尘科技"
+        viewModel.jobURLText = "not a url"
+        viewModel.save()
+        #expect(viewModel.jobURLError == "请输入合法的岗位链接")
+        #expect(fake.updateCalls.isEmpty)
+
+        viewModel.jobURLText = ""
+        viewModel.save()
+        #expect(viewModel.jobURLError == nil)
+        #expect(fake.updateCalls.count == 1)
+        #expect(fake.updateCalls.first?.jobURL == nil)
+    }
+
+    @Test("edit-mode unsaved changes compare against the loaded snapshot")
+    func editModeUnsavedChangesCompareAgainstSnapshot() {
+        let viewModel = makeEditViewModel(
+            fake: FakeApplicationRepository(),
+            application: makeEditingApplication()
+        )
+
+        #expect(viewModel.hasUnsavedChanges == false)
+
+        viewModel.notesText = "新备注"
+        #expect(viewModel.hasUnsavedChanges)
+
+        viewModel.notesText = "内推"
+        #expect(viewModel.hasUnsavedChanges == false)
+
+        viewModel.companyName = "星尘科技 "
+        #expect(viewModel.hasUnsavedChanges == false, "trimmed text is equal")
+
+        viewModel.hasDeadline = false
+        #expect(viewModel.hasUnsavedChanges)
+
+        viewModel.hasDeadline = true
+        #expect(viewModel.hasUnsavedChanges == false)
+    }
+
+    @Test("a 09:00 deadline loads as the default time")
+    func deadlineAtNineLoadsAsDefaultTime() throws {
+        let deadline = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 20, hour: 9))
+        )
+        let viewModel = makeEditViewModel(
+            fake: FakeApplicationRepository(),
+            application: makeEditingApplication(deadline: deadline)
+        )
+
+        #expect(viewModel.hasDeadline)
+        #expect(viewModel.includesDeadlineTime == false)
+        #expect(viewModel.deadline == deadline)
+    }
+
+    @Test("an edit save failure shows the Chinese retry copy")
+    func editModeSaveFailureShowsRetryCopy() {
+        let fake = FakeApplicationRepository()
+        fake.updateError = RepositoryError.saveFailed
+        let viewModel = makeEditViewModel(fake: fake, application: makeEditingApplication())
+        viewModel.companyName = "新公司"
+
+        viewModel.save()
+
+        #expect(viewModel.saveErrorMessage == "保存失败，请重试")
+        #expect(viewModel.savedApplicationID == nil)
+        #expect(fake.updateCalls.count == 1)
+    }
 }

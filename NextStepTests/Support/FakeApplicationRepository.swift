@@ -1,8 +1,8 @@
 import Foundation
 @testable import NextStep
 
-/// Test double for the application writing seam. It records creation arguments and returns a
-/// synthetic `Application`, so ViewModel tests observe behavior without SwiftData.
+/// Test double for the application writing seam. It records calls and returns synthetic models, so
+/// ViewModel tests observe behavior without SwiftData.
 @MainActor
 final class FakeApplicationRepository: ApplicationRepository {
     struct CreateCall {
@@ -17,10 +17,39 @@ final class FakeApplicationRepository: ApplicationRepository {
         let jobPosting: JobPosting?
     }
 
+    struct UpdateCall {
+        let application: Application
+        let companyName: String
+        let roleTitle: String
+        let jobURL: URL?
+        let location: String?
+        let notes: String?
+        let deadline: Date?
+    }
+
+    struct StatusChangeCall {
+        let application: Application
+        let toStatus: ApplicationStatus
+        let note: String?
+        let date: Date
+    }
+
     var createCalls: [CreateCall] = []
     var createError: (any Error)?
     var createdApplicationID = UUID()
     var onCreate: (() -> Void)?
+
+    var storedApplications: [UUID: Application] = [:]
+    var applicationLoadError: (any Error)?
+
+    var updateCalls: [UpdateCall] = []
+    var updateError: (any Error)?
+
+    var deleteCalls: [Application] = []
+    var deleteError: (any Error)?
+
+    var statusChangeCalls: [StatusChangeCall] = []
+    var statusChangeError: (any Error)?
 
     func createApplication(
         companyName: String,
@@ -63,9 +92,16 @@ final class FakeApplicationRepository: ApplicationRepository {
         )
     }
 
-    func allApplications() throws -> [Application] { [] }
+    func allApplications() throws -> [Application] {
+        Array(storedApplications.values)
+    }
 
-    func application(id: UUID) throws -> Application? { nil }
+    func application(id: UUID) throws -> Application? {
+        if let applicationLoadError {
+            throw applicationLoadError
+        }
+        return storedApplications[id]
+    }
 
     func applications(for jobPosting: JobPosting) throws -> [Application] { [] }
 
@@ -80,11 +116,32 @@ final class FakeApplicationRepository: ApplicationRepository {
         notes: String?,
         deadline: Date?
     ) throws {
-        throw RepositoryError.unavailable
+        updateCalls.append(UpdateCall(
+            application: application,
+            companyName: companyName,
+            roleTitle: roleTitle,
+            jobURL: jobURL,
+            location: location,
+            notes: notes,
+            deadline: deadline
+        ))
+        if let updateError {
+            throw updateError
+        }
+        application.companyName = companyName
+        application.roleTitle = roleTitle
+        application.jobURL = jobURL
+        application.location = location
+        application.notes = notes
+        application.deadline = deadline
     }
 
     func deleteApplication(_ application: Application) throws {
-        throw RepositoryError.unavailable
+        deleteCalls.append(application)
+        if let deleteError {
+            throw deleteError
+        }
+        storedApplications[application.id] = nil
     }
 
     func changeStatus(
@@ -93,7 +150,16 @@ final class FakeApplicationRepository: ApplicationRepository {
         note: String?,
         at date: Date
     ) throws {
-        throw RepositoryError.unavailable
+        statusChangeCalls.append(StatusChangeCall(
+            application: application,
+            toStatus: newStatus,
+            note: note,
+            date: date
+        ))
+        if let statusChangeError {
+            throw statusChangeError
+        }
+        application.status = newStatus
     }
 
     func addInterviewRound(
