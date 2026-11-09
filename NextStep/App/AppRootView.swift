@@ -1,11 +1,12 @@
-import os
 import SwiftData
 import SwiftUI
 
-/// Owns composition-root creation. Container failure shows a blocking Chinese error page with retry.
+/// Routes the composition root's state. `NextStepApp` owns container creation and retry; this
+/// view only renders the ready, failed, or loading state.
 struct AppRootView: View {
-    @State private var container: AppContainer?
-    @State private var didFailToOpenStore = false
+    let container: AppContainer?
+    let didFailToOpenStore: Bool
+    let onRetry: () -> Void
 
     var body: some View {
         Group {
@@ -14,27 +15,10 @@ struct AppRootView: View {
                     .environment(container)
                     .modelContainer(container.modelContainer)
             } else if didFailToOpenStore {
-                StartupErrorView(onRetry: loadContainer)
+                StartupErrorView(onRetry: onRetry)
             } else {
                 ProgressView("正在打开本地数据…")
-                    .task {
-                        guard container == nil, !didFailToOpenStore else { return }
-                        loadContainer()
-                    }
             }
-        }
-    }
-
-    @MainActor
-    private func loadContainer() {
-        didFailToOpenStore = false
-        do {
-            container = try AppContainer.makeDefault()
-        } catch {
-            AppLogger.app.error(
-                "Failed to open the local store: \(error.localizedDescription, privacy: .public)"
-            )
-            didFailToOpenStore = true
         }
     }
 }

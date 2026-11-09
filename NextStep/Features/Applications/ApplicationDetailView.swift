@@ -22,6 +22,7 @@ struct ApplicationDetailView: View {
     @State private var roundBeingEdited: InterviewRound?
     @State private var isShowingMarkAsInterviewPrompt = false
     @State private var isConfirmingDelete = false
+    @State private var roundPendingDeletion: InterviewRound?
 
     init(container: AppContainer, applicationID: UUID) {
         _viewModel = State(initialValue: ApplicationDetailViewModel(
@@ -167,7 +168,7 @@ struct ApplicationDetailView: View {
                         .buttonStyle(.plain)
                         .swipeActions(edge: .trailing) {
                             Button("删除", role: .destructive) {
-                                viewModel.deleteRound(round)
+                                roundPendingDeletion = round
                             }
                         }
                     }
@@ -242,6 +243,23 @@ struct ApplicationDetailView: View {
             }
         } message: {
             Text("已添加未来的面试轮次。")
+        }
+        .confirmationDialog(
+            "删除这轮面试？",
+            isPresented: isConfirmingRoundDeletion,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                if let round = roundPendingDeletion {
+                    viewModel.deleteRound(round)
+                }
+                roundPendingDeletion = nil
+            }
+            Button("取消", role: .cancel) {
+                roundPendingDeletion = nil
+            }
+        } message: {
+            Text("这轮面试会从申请中删除，此操作不可撤销。")
         }
     }
 
@@ -363,6 +381,18 @@ struct ApplicationDetailView: View {
         Binding(
             get: { isShowingMarkAsInterviewPrompt },
             set: { isShowingMarkAsInterviewPrompt = $0 }
+        )
+    }
+
+    /// Drives the round-delete confirmation from the row's pending round.
+    private var isConfirmingRoundDeletion: Binding<Bool> {
+        Binding(
+            get: { roundPendingDeletion != nil },
+            set: { isPresented in
+                if !isPresented {
+                    roundPendingDeletion = nil
+                }
+            }
         )
     }
 

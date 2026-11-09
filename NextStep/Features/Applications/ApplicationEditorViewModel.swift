@@ -223,7 +223,7 @@ final class ApplicationEditorViewModel {
         if rawURL.isEmpty {
             jobURLError = nil
         } else {
-            jobURLError = Self.webURL(from: rawURL) == nil ? "请输入合法的岗位链接" : nil
+            jobURLError = WebURL.parse(rawURL) == nil ? "请输入合法的岗位链接" : nil
         }
 
         return companyError == nil && roleError == nil && jobURLError == nil
@@ -231,20 +231,7 @@ final class ApplicationEditorViewModel {
 
     private var parsedJobURL: URL? {
         let rawURL = trimmed(jobURLText)
-        return rawURL.isEmpty ? nil : Self.webURL(from: rawURL)
-    }
-
-    private static func webURL(from rawValue: String) -> URL? {
-        guard
-            let url = URL(string: rawValue),
-            let scheme = url.scheme?.lowercased(),
-            scheme == "http" || scheme == "https",
-            let host = url.host,
-            !host.isEmpty
-        else {
-            return nil
-        }
-        return url
+        return rawURL.isEmpty ? nil : WebURL.parse(rawURL)
     }
 
     private func trimmed(_ value: String) -> String {

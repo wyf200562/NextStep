@@ -112,6 +112,67 @@ struct ManualImportViewModelTests {
         #expect(viewModel.isSaving == false)
     }
 
+    @Test func hasContentIgnoresWhitespaceButTracksEveryFieldAndJobType() {
+        let viewModel = ManualImportViewModel(jobRepository: FakeJobRepository())
+
+        #expect(viewModel.hasContent == false)
+
+        viewModel.title = "  "
+        viewModel.companyName = "\n"
+        viewModel.descriptionPlainText = "   "
+        viewModel.location = " "
+        viewModel.jobURLText = "\n"
+        viewModel.tagsText = "   "
+        #expect(viewModel.hasContent == false)
+
+        viewModel.title = "iOS 开发实习生"
+        #expect(viewModel.hasContent)
+        viewModel.title = ""
+        #expect(viewModel.hasContent == false)
+
+        viewModel.companyName = "星舟科技"
+        #expect(viewModel.hasContent)
+        viewModel.companyName = ""
+        #expect(viewModel.hasContent == false)
+
+        viewModel.descriptionPlainText = "参与 iOS 开发"
+        #expect(viewModel.hasContent)
+        viewModel.descriptionPlainText = ""
+        #expect(viewModel.hasContent == false)
+
+        viewModel.location = "远程"
+        #expect(viewModel.hasContent)
+        viewModel.location = ""
+        #expect(viewModel.hasContent == false)
+
+        viewModel.jobURLText = "https://example.com/jobs/1"
+        #expect(viewModel.hasContent)
+        viewModel.jobURLText = ""
+        #expect(viewModel.hasContent == false)
+
+        viewModel.tagsText = "Swift"
+        #expect(viewModel.hasContent)
+        viewModel.tagsText = ""
+        #expect(viewModel.hasContent == false)
+
+        viewModel.jobType = .internship
+        #expect(viewModel.hasContent)
+    }
+
+    @Test func saveFailureMapsTypedSourceErrorsToChineseCopy() async {
+        let repository = FakeJobRepository()
+        repository.importResult = .failure(JobSourceError.offline)
+        let viewModel = ManualImportViewModel(jobRepository: repository)
+        viewModel.title = "iOS 开发实习生"
+        viewModel.companyName = "星舟科技"
+        viewModel.descriptionPlainText = "参与 iOS 开发"
+
+        let savedID = await viewModel.save()
+
+        #expect(savedID == nil)
+        #expect(viewModel.saveErrorMessage == "网络不可用，请检查连接")
+    }
+
     @Test(arguments: [
         (JobTypeOption.internship, "internship"),
         (JobTypeOption.fullTime, "full_time"),

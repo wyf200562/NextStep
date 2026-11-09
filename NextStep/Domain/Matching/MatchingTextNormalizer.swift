@@ -19,6 +19,17 @@ nonisolated enum MatchingTextNormalizer {
         !occurrences(of: alias, in: text).isEmpty
     }
 
+    /// Title aliases that mark a posting as an internship.
+    ///
+    /// Shared by `MatchingEngine` and manual-source normalization so "Internal" or
+    /// "International" never read as "intern"; Chinese counts as its own boundary.
+    static let internshipTitleAliases = ["intern", "interns", "internship", "internships", "实习"]
+
+    /// Whether a normalized title contains an internship alias at a valid boundary.
+    static func indicatesInternshipInTitle(_ normalizedTitle: String) -> Bool {
+        internshipTitleAliases.contains { containsAlias($0, in: normalizedTitle) }
+    }
+
     /// Non-overlapping occurrences of `alias` in `text`.
     ///
     /// Aliases that start or end with an ASCII alphanumeric need a word boundary on that side, so

@@ -100,13 +100,13 @@ nonisolated struct RemotiveJobDTO: Decodable, Sendable {
             companyName: companyName,
             descriptionPlainText: HTMLTextNormalizer.plainText(from: description ?? ""),
             externalJobID: String(id),
-            jobURL: Self.webURL(url),
+            jobURL: WebURL.parse(url),
             location: Self.trimmed(candidateRequiredLocation),
             jobType: Self.trimmed(jobType)?.lowercased(),
             tags: tags ?? [],
             publishedAt: Self.parseDate(publicationDate),
             salary: Self.trimmed(salary),
-            companyLogoURL: Self.webURL(companyLogoURL)
+            companyLogoURL: WebURL.parse(companyLogoURL)
         )
     }
 
@@ -121,16 +121,6 @@ nonisolated struct RemotiveJobDTO: Decodable, Sendable {
             return Int(raw.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return nil
-    }
-
-    /// Only absolute http(s) URLs with a host are usable links; anything else becomes `nil`.
-    private static func webURL(_ raw: String?) -> URL? {
-        guard let raw = trimmed(raw), let url = URL(string: raw) else { return nil }
-        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
-            return nil
-        }
-        guard url.host?.isEmpty == false else { return nil }
-        return url
     }
 
     private static func trimmed(_ value: String?) -> String? {

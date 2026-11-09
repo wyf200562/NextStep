@@ -23,7 +23,7 @@ nonisolated struct ManualJobSource: JobSource {
         guard !title.isEmpty, !companyName.isEmpty, !descriptionPlainText.isEmpty else {
             throw JobSourceError.invalidInput
         }
-        if let jobURL = input.jobURL, !Self.isWebURL(jobURL) {
+        if let jobURL = input.jobURL, !WebURL.isValid(jobURL) {
             throw JobSourceError.invalidInput
         }
 
@@ -45,14 +45,6 @@ nonisolated struct ManualJobSource: JobSource {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Only absolute http(s) URLs with a host are valid; relative or custom schemes are rejected.
-    private static func isWebURL(_ url: URL) -> Bool {
-        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
-            return false
-        }
-        return url.host?.isEmpty == false
-    }
-
     private static func trimmedOptional(_ value: String?) -> String? {
         guard let value else { return nil }
         let trimmed = trimmed(value)
@@ -60,12 +52,15 @@ nonisolated struct ManualJobSource: JobSource {
     }
 
     /// An explicit type wins; otherwise an intern/实习 title is saved as an internship.
+    ///
+    /// Title matching reuses `MatchingTextNormalizer`'s alias boundaries, so "Internal Tools" and
+    /// "International" never infer an internship.
     private static func resolvedJobType(_ value: String?, title: String) -> String? {
         if let explicit = trimmedOptional(value) {
             return explicit.lowercased()
         }
-        let lowercasedTitle = title.lowercased()
-        if lowercasedTitle.contains("intern") || title.contains("实习") {
+        let normalizedTitle = MatchingTextNormalizer.normalize(title)
+        if MatchingTextNormalizer.indicatesInternshipInTitle(normalizedTitle) {
             return "internship"
         }
         return nil

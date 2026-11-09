@@ -444,10 +444,7 @@ nonisolated struct MatchingEngine: Sendable {
     }
 
     private func titleIndicatesInternship(_ normalizedTitle: String) -> Bool {
-        for alias in ["intern", "interns", "internship", "internships", "实习"] {
-            if MatchingTextNormalizer.containsAlias(alias, in: normalizedTitle) { return true }
-        }
-        return false
+        MatchingTextNormalizer.indicatesInternshipInTitle(normalizedTitle)
     }
 
     // MARK: - Result helpers

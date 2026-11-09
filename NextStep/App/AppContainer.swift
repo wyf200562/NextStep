@@ -88,6 +88,13 @@ final class AppContainer {
         }
     }
 
+    /// Debug-only: returns the store to a first-launch state and clears the refresh ledger.
+    ///
+    /// Features call this instead of constructing a Data-layer resetter with the `ModelContext`.
+    func resetDemoData() throws {
+        try DemoDataResetter(context: modelContext, refreshLedger: refreshLedger).reset()
+    }
+
     /// Creates the production container backed by the on-disk store.
     static func makeDefault() throws -> AppContainer {
         let modelContainer = try ModelContainerFactory.makeContainer()

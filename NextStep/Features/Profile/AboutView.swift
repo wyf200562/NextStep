@@ -102,10 +102,7 @@ private struct DebugDemoDataSection: View {
         defer { isResetting = false }
 
         do {
-            try DemoDataResetter(
-                context: container.modelContext,
-                refreshLedger: container.refreshLedger
-            ).reset()
+            try container.resetDemoData()
             successMessage = "已清空演示数据，重启 App 后完全回到首次启动状态。"
             AppLogger.app.info("Cleared all demo data from the debug 关于 action")
         } catch {

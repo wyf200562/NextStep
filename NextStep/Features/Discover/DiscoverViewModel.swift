@@ -307,17 +307,7 @@ final class DiscoverViewModel {
 
     /// Maps typed data-layer failures to the Chinese copy from spec §11; never shows raw errors.
     private static func message(for error: any Error) -> String {
-        guard let sourceError = error as? JobSourceError else {
-            return "加载失败，请稍后重试"
-        }
-        return switch sourceError {
-        case .invalidInput: "请检查必填项"
-        case .offline: "网络不可用，请检查连接"
-        case .timedOut: "请求超时，请稍后重试"
-        case .rateLimited: "请求过于频繁，请稍后再试"
-        case .server(let code): "服务器暂时不可用（HTTP \(code)）"
-        case .decoding: "数据格式暂时无法识别"
-        }
+        JobSourceErrorCopy.message(for: error, fallback: "加载失败，请稍后重试")
     }
 
     private static let ineligiblePreviewLimit = 4

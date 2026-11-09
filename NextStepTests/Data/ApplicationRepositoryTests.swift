@@ -235,6 +235,143 @@ struct ApplicationRepositoryTests {
         }
     }
 
+    // MARK: - Derived appliedAt
+
+    @Test("appliedAt comes from the initial StatusChange when the application starts as applied")
+    func appliedAtUsesTheInitialAppliedStatusChange() throws {
+        let calendar = makeCalendar()
+        let now = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 10))
+        )
+        let statusDate = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 10, day: 1, hour: 9))
+        )
+        let made = try makeRepository(now: now, calendar: calendar)
+
+        try withExtendedLifetime(made.container) {
+            let repository = made.repository
+            let application = try createApplication(
+                in: repository,
+                status: .applied,
+                statusDate: statusDate
+            )
+            let changes = try repository.statusChanges(for: application)
+
+            #expect(application.appliedAt == statusDate)
+            #expect(application.firstAppliedChange?.id == changes.first?.id)
+            #expect(application.firstAppliedChange?.fromStatus == nil)
+        }
+    }
+
+    @Test("appliedAt stays nil for wishlist and becomes the applied transition date later")
+    func appliedAtAdvancesFromWishlistToApplied() throws {
+        let calendar = makeCalendar()
+        let now = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 10))
+        )
+        let wishlistDate = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 10, day: 1, hour: 9))
+        )
+        let appliedDate = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 10, day: 5, hour: 15))
+        )
+        let clock = MutableDateProvider(now: now, calendar: calendar)
+        let made = try makeRepository(dateProvider: clock)
+
+        try withExtendedLifetime(made.container) {
+            let repository = made.repository
+            let application = try createApplication(
+                in: repository,
+                status: .wishlist,
+                statusDate: wishlistDate
+            )
+
+            #expect(application.appliedAt == nil)
+
+            clock.now = appliedDate
+            try repository.changeStatus(of: application, to: .applied, note: nil, at: appliedDate)
+
+            #expect(application.appliedAt == appliedDate)
+            let firstApplied = try #require(application.firstAppliedChange)
+            #expect(firstApplied.toStatus == .applied)
+            #expect(firstApplied.changedAt == appliedDate)
+        }
+    }
+
+    @Test("appliedAt picks the earliest applied record and breaks ties by id")
+    func appliedAtSortsByChangedAtThenID() throws {
+        let calendar = makeCalendar()
+        let now = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 10))
+        )
+        let wishlistDate = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 9, day: 1, hour: 9))
+        )
+        let early = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 10, day: 1, hour: 9))
+        )
+        let tiedEarliest = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 9, day: 15, hour: 9))
+        )
+        let late = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 1, hour: 9))
+        )
+        let made = try makeRepository(now: now, calendar: calendar)
+
+        try withExtendedLifetime(made.container) {
+            let repository = made.repository
+            let context = made.container.mainContext
+            let application = try createApplication(
+                in: repository,
+                status: .wishlist,
+                statusDate: wishlistDate
+            )
+
+            let earlyApplied = StatusChange(
+                id: fixedID(40),
+                toStatus: .applied,
+                changedAt: early
+            )
+            let lateApplied = StatusChange(
+                id: fixedID(50),
+                toStatus: .applied,
+                changedAt: late
+            )
+            for change in [lateApplied, earlyApplied] {
+                context.insert(change)
+                change.application = application
+            }
+            try context.save()
+
+            #expect(application.appliedAt == early)
+            #expect(application.firstAppliedChange?.id == fixedID(40))
+
+            let tiedHigherID = StatusChange(
+                id: fixedID(20),
+                toStatus: .applied,
+                changedAt: tiedEarliest
+            )
+            let tiedLowerID = StatusChange(
+                id: fixedID(10),
+                toStatus: .applied,
+                changedAt: tiedEarliest
+            )
+            let tiedMiddleID = StatusChange(
+                id: fixedID(30),
+                toStatus: .applied,
+                changedAt: tiedEarliest
+            )
+            for change in [tiedHigherID, tiedMiddleID, tiedLowerID] {
+                context.insert(change)
+                change.application = application
+            }
+            try context.save()
+
+            #expect(application.appliedAt == tiedEarliest)
+            #expect(application.firstAppliedChange?.id == fixedID(10))
+        }
+    }
+
     // MARK: - Status changes
 
     @Test("changeStatus appends a StatusChange and updates status and lastModifiedAt", arguments: Self.validTransitions)

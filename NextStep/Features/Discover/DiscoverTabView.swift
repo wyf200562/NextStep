@@ -8,11 +8,11 @@ struct DiscoverTabView: View {
     var body: some View {
         @Bindable var router = container.router
         NavigationStack(path: $path) {
-            DiscoverView()
+            DiscoverView(container: container)
                 .navigationDestination(for: DiscoverRoute.self) { route in
                     switch route {
                     case .jobDetail(let jobID):
-                        JobDetailView(jobID: jobID)
+                        JobDetailView(container: container, jobID: jobID)
                     case .manualImport:
                         ManualImportView { jobID in
                             // Replace the form with the new posting's detail; going back lands on Discover.
