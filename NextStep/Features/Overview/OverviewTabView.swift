@@ -2,6 +2,7 @@ import SwiftUI
 
 /// 概览 tab root. The dashboard itself arrives in a later slice.
 struct OverviewTabView: View {
+    @Environment(AppContainer.self) private var container
     @State private var path: [OverviewRoute] = []
 
     var body: some View {
@@ -10,7 +11,7 @@ struct OverviewTabView: View {
                 .navigationDestination(for: OverviewRoute.self) { route in
                     switch route {
                     case .applicationDetail(let applicationID):
-                        ApplicationDetailView(applicationID: applicationID)
+                        ApplicationDetailView(container: container, applicationID: applicationID)
                     }
                 }
         }

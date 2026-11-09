@@ -4,9 +4,10 @@ import SwiftData
 
 /// SwiftData implementation of the application writing seam.
 ///
-/// Creation inserts the `Application` and its initial `StatusChange` in one save. Status changes,
-/// snapshot edits, deletion, and interview-round management are owned by tickets 14 and 16; until
-/// those land, calling them fails with `RepositoryError.unavailable` instead of trapping.
+/// Creation inserts the `Application` and its initial `StatusChange` in one save. Snapshot edits,
+/// deletion (cascading rounds and status history but keeping the `JobPosting`), and validated
+/// status changes each save atomically. Interview-round management is owned by ticket 16; until it
+/// lands, those calls fail with `RepositoryError.unavailable` instead of trapping.
 @MainActor
 final class SwiftDataApplicationRepository: ApplicationRepository {
     private let context: ModelContext
@@ -109,7 +110,7 @@ final class SwiftDataApplicationRepository: ApplicationRepository {
         return application
     }
 
-    // MARK: - Owned by later tickets
+    // MARK: - Editing
 
     func updateApplication(
         _ application: Application,
@@ -120,12 +121,43 @@ final class SwiftDataApplicationRepository: ApplicationRepository {
         notes: String?,
         deadline: Date?
     ) throws {
-        throw deferred("updateApplication", tickets: "14")
+        application.companyName = companyName
+        application.roleTitle = roleTitle
+        application.jobURL = jobURL
+        application.location = location
+        application.notes = notes
+        application.deadline = deadline
+        application.lastModifiedAt = dateProvider.now
+
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            AppLogger.data.error(
+                "Failed to update application \(application.id, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            throw RepositoryError.saveFailed
+        }
+        AppLogger.data.info("Updated an application snapshot")
     }
 
     func deleteApplication(_ application: Application) throws {
-        throw deferred("deleteApplication", tickets: "14")
+        let applicationID = application.id
+        context.delete(application)
+
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            AppLogger.data.error(
+                "Failed to delete application \(applicationID, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            throw RepositoryError.saveFailed
+        }
+        AppLogger.data.info("Deleted an application; its rounds and status history cascaded")
     }
+
+    // MARK: - Status changes
 
     func changeStatus(
         of application: Application,
@@ -133,8 +165,40 @@ final class SwiftDataApplicationRepository: ApplicationRepository {
         note: String?,
         at date: Date
     ) throws {
-        throw deferred("changeStatus", tickets: "14")
+        let fromStatus = application.status
+        guard ApplicationStateMachine.isValidTransition(from: fromStatus, to: newStatus) else {
+            AppLogger.data.error(
+                "Rejected an illegal transition \(fromStatus.rawValue, privacy: .public) → \(newStatus.rawValue, privacy: .public)"
+            )
+            throw ApplicationTransitionError(from: fromStatus, to: newStatus)
+        }
+
+        let change = StatusChange(
+            fromStatus: fromStatus,
+            toStatus: newStatus,
+            changedAt: date,
+            note: note
+        )
+        context.insert(change)
+        change.application = application
+        application.status = newStatus
+        application.lastModifiedAt = dateProvider.now
+
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            AppLogger.data.error(
+                "Failed to change application status: \(error.localizedDescription, privacy: .public)"
+            )
+            throw RepositoryError.saveFailed
+        }
+        AppLogger.data.info(
+            "Changed an application status \(fromStatus.rawValue, privacy: .public) → \(newStatus.rawValue, privacy: .public)"
+        )
     }
+
+    // MARK: - Owned by ticket 16
 
     @discardableResult
     func addInterviewRound(
@@ -146,7 +210,7 @@ final class SwiftDataApplicationRepository: ApplicationRepository {
         notes: String?,
         result: InterviewResult
     ) throws -> InterviewRound {
-        throw deferred("addInterviewRound", tickets: "14/16")
+        throw deferred("addInterviewRound", tickets: "16")
     }
 
     func updateInterviewRound(
@@ -158,11 +222,11 @@ final class SwiftDataApplicationRepository: ApplicationRepository {
         notes: String?,
         result: InterviewResult
     ) throws {
-        throw deferred("updateInterviewRound", tickets: "14/16")
+        throw deferred("updateInterviewRound", tickets: "16")
     }
 
     func deleteInterviewRound(_ round: InterviewRound) throws {
-        throw deferred("deleteInterviewRound", tickets: "14/16")
+        throw deferred("deleteInterviewRound", tickets: "16")
     }
 
     private func deferred(_ operation: String, tickets: String) -> RepositoryError {
