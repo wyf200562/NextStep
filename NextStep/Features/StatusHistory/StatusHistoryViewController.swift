@@ -44,9 +44,10 @@ final class StatusHistoryViewController: UIViewController {
         title = "状态历史"
         navigationItem.largeTitleDisplayMode = .never
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .done,
-            target: self,
-            action: #selector(doneTapped)
+            title: "完成",
+            primaryAction: UIAction { [weak self] _ in
+                self?.dismiss(animated: true)
+            }
         )
         setUpTableView()
         loadStatusChanges()
@@ -141,9 +142,5 @@ final class StatusHistoryViewController: UIViewController {
             self?.loadStatusChanges()
         }
         return configuration
-    }
-
-    @objc private func doneTapped() {
-        dismiss(animated: true)
     }
 }

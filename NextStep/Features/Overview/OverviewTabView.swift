@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 概览 tab root. The dashboard itself arrives in a later slice.
+/// 概览 tab root. Owns its navigation stack; cross-tab actions go through `AppRouter`.
 struct OverviewTabView: View {
     @Environment(AppContainer.self) private var container
     @State private var path: [OverviewRoute] = []
