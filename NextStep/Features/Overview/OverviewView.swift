@@ -81,7 +81,7 @@ struct OverviewView: View {
             Text("从第一份申请开始")
                 .font(.title2.bold())
 
-            Text("把想投的岗位记下来，NextStep 会在截止前提醒你。")
+            Text("把想投的岗位记下来，截止日期和面试安排都放在一起。")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

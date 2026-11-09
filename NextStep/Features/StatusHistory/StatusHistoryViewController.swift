@@ -44,7 +44,8 @@ final class StatusHistoryViewController: UIViewController {
         title = "状态历史"
         navigationItem.largeTitleDisplayMode = .never
         navigationItem.rightBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .done,
+            title: "完成",
+            style: .done,
             target: self,
             action: #selector(doneTapped)
         )

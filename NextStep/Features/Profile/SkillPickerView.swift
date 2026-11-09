@@ -33,7 +33,15 @@ struct SkillPickerView: View {
         } else {
             Group {
                 if groups.isEmpty {
-                    ContentUnavailableView.search(text: query)
+                    ContentUnavailableView {
+                        Label("没有找到技能", systemImage: "magnifyingglass")
+                    } description: {
+                        Text(
+                            query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                ? "技能词典为空。"
+                                : "没有匹配「\(query)」的技能，试试其他名称或别名。"
+                        )
+                    }
                 } else {
                     List {
                         Section {
