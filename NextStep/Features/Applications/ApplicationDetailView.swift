@@ -146,6 +146,21 @@ struct ApplicationDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+
+            // Associated posting summary (ticket 21); the match summary is ticket 22.
+            // When the posting is missing, the snapshot sections above remain the only source.
+            if let summary = ApplicationJobPostingSummary(jobPosting: application.jobPosting) {
+                Section("关联岗位") {
+                    LabeledContent("职位", value: summary.title)
+                    LabeledContent("公司", value: summary.companyName)
+                    LabeledContent("来源", value: summary.sourceName)
+                    if let jobURL = summary.jobURL {
+                        Link(destination: jobURL) {
+                            Label("打开原岗位", systemImage: "link")
+                        }
+                    }
+                }
+            }
         }
     }
 
