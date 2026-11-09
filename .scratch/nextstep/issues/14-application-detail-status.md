@@ -47,6 +47,8 @@ xcodebuild -project NextStep.xcodeproj -scheme NextStep \
 
 结果：exit 0，`** TEST SUCCEEDED **`（-quiet 下 exit 0），81 个测试函数 / 242 个参数化用例全部通过，0 失败 0 跳过。新增覆盖：状态机 7×7 全转换表（allowed/reopen/isValid/requiresConfirmation）、29 条合法转换与 20 条非法转换的 repository 行为、update/delete cascade、详情 VM 的目标/确认/错误映射/删除、编辑器编辑模式。隔离 DerivedData 与 `-collect-test-diagnostics never` 仅用于绕开并发 agent 场景下 Xcode 收集模拟器诊断时的卡死。App 在分配模拟器上安装启动成功（4 个 tab 正常）。
 
+集成分支合并：`0829f15`（ticket 18 匹配核心）合入后全量重跑，164 个测试函数 / 340 个参数化用例全部通过，0 失败 0 跳过。
+
 ### 决策与说明
 
 - `ApplicationTransitionError` 定义在 Domain（与状态机同文件）；Repository 抛它，ViewModel 先做本地校验并把 repository 抛出的 typed error 映射为同一句中文。删除失败使用「删除失败，请重试」（spec 只给了保存失败示例）。
