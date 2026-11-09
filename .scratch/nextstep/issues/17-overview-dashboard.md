@@ -43,6 +43,8 @@ xcodebuild -project NextStep.xcodeproj -scheme NextStep \
 
 结果：exit 0，`** TEST SUCCEEDED **`，`Test run with 238 tests in 28 suites passed`（0 失败 0 跳过）。新增 `Overview dashboard` suite 7 个测试函数，其中一个为 10 个 case 的表驱动测试；覆盖今天/未来 7 天边界、过去事件标记、终态排除、offer deadline、pending-only、合并排序与全部 tie-breaker、计数去重、最近 5 与 id tie-break、空数据。iPhone 18 Pro 模拟器安装启动，分别以空数据与 7 条种子数据检查空状态与完整首屏（今天已过事件、明天面试、计数 4/4/1、最近更新）均按预期渲染。
 
+合并 `integration/nextstep-v1`（`b566d6b`，无冲突）后重跑全量：exit 0，`** TEST SUCCEEDED **`，238 个测试（28 个 suite）通过，0 失败 0 跳过。
+
 ### 决策与说明
 
 - 今天窗口为 `[今天 00:00, 明天 00:00)`，未来窗口为 `[明天 00:00, 今天+8 00:00)`，与列表「临近截止」的 8 个日历日窗口一致；昨天及更早的非今天事件不显示，今天已过去的事件保留并标「已过」。
