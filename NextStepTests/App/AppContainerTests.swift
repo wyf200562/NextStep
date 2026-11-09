@@ -38,6 +38,7 @@ struct AppContainerTests {
 
         let provider = try #require(container.matchProvider)
         #expect(provider is MatchService)
+        #expect(container.matchingLexicon != nil)
     }
 
     @Test func injectedMatchProviderIsPreserved() throws {
@@ -63,6 +64,7 @@ struct AppContainerTests {
         )
 
         #expect(container.matchProvider == nil)
+        #expect(container.matchingLexicon == nil)
     }
 
     @Test func inMemoryContainerProvidesWorkingProfileRepository() throws {
