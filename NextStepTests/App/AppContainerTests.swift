@@ -5,6 +5,12 @@ import Testing
 
 @Suite("AppContainer")
 struct AppContainerTests {
+    @MainActor
+    private final class StubMatchProvider: MatchProviding {
+        func evaluate(job: JobPosting) throws -> MatchResult? { nil }
+        func evaluate(jobs: [JobPosting]) throws -> [String: MatchResult] { [:] }
+    }
+
     @Test func wiresInjectedContainerDateProviderRouterAndRepositories() throws {
         let modelContainer = try ModelContainerFactory.makeContainer(isStoredInMemoryOnly: true)
         let fixedNow = Date(timeIntervalSince1970: 1_700_000_000)
@@ -22,6 +28,40 @@ struct AppContainerTests {
         #expect(container.router === router)
         #expect(container.router.selectedTab == .applications)
         #expect(container.jobSourceFactory == nil)
+        let provider = try #require(container.matchProvider)
+        #expect(provider is MatchService)
+    }
+
+    @Test func defaultContainerWiresMatchServiceFromBundledLexicons() throws {
+        let modelContainer = try ModelContainerFactory.makeContainer(isStoredInMemoryOnly: true)
+        let container = AppContainer(modelContainer: modelContainer)
+
+        let provider = try #require(container.matchProvider)
+        #expect(provider is MatchService)
+    }
+
+    @Test func injectedMatchProviderIsPreserved() throws {
+        let modelContainer = try ModelContainerFactory.makeContainer(isStoredInMemoryOnly: true)
+        let provider = StubMatchProvider()
+
+        let container = AppContainer(modelContainer: modelContainer, matchProvider: provider)
+
+        #expect(container.matchProvider === provider)
+    }
+
+    @Test func matchingDegradesToNilWhenTheLexiconCannotLoad() throws {
+        let modelContainer = try ModelContainerFactory.makeContainer(isStoredInMemoryOnly: true)
+        let loader = MatchingLexiconLoader(
+            skillDictionaryURL: nil,
+            roleDirectionURL: nil,
+            locationURL: nil
+        )
+
+        let container = AppContainer(
+            modelContainer: modelContainer,
+            matchingLexiconLoader: loader
+        )
+
         #expect(container.matchProvider == nil)
     }
 

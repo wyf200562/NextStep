@@ -1,0 +1,15 @@
+[
+  {"id": "ios", "name": "iOS / Mobile", "aliases": ["ios", "iphone", "ipad", "mobile", "移动端", "移动开发", "客户端", "手机端", "苹果移动端"]},
+  {"id": "android", "name": "Android", "aliases": ["android", "安卓", "安卓开发", "安卓客户端"]},
+  {"id": "backend", "name": "Backend", "aliases": ["backend", "back-end", "back end", "server", "server-side", "服务端", "后端", "后台开发"]},
+  {"id": "frontend", "name": "Frontend / Web", "aliases": ["frontend", "front-end", "front end", "web", "web前端", "前端", "网页开发"]},
+  {"id": "data", "name": "Data / ML / AI", "aliases": ["data", "ml", "machine learning", "ai", "artificial intelligence", "data science", "数据", "机器学习", "人工智能", "深度学习", "数据分析", "大数据"]},
+  {"id": "qa", "name": "QA / Test", "aliases": ["qa", "test", "testing", "quality assurance", "自动化测试", "质量保障", "测试", "软件测试"]},
+  {"id": "algorithm", "name": "Algorithm", "aliases": ["algorithm", "algorithms", "算法", "算法工程师"]},
+  {"id": "product", "name": "Product", "aliases": ["product", "product manager", "pm", "产品", "产品经理"]},
+  {"id": "design", "name": "Design", "aliases": ["design", "designer", "ux", "ui design", "交互设计", "视觉设计", "设计"]},
+  {"id": "devops", "name": "DevOps", "aliases": ["devops", "sre", "infrastructure", "运维", "基础设施", "基础架构"]},
+  {"id": "security", "name": "Security", "aliases": ["security", "信息安全", "网络安全", "安全", "渗透测试"]},
+  {"id": "embedded", "name": "Embedded", "aliases": ["embedded", "firmware", "嵌入式", "单片机", "固件"]},
+  {"id": "game", "name": "Game", "aliases": ["game", "gaming", "unity", "unreal", "游戏", "游戏开发"]}
+]
