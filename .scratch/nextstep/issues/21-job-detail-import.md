@@ -42,10 +42,12 @@ xcodebuild -project NextStep.xcodeproj -scheme NextStep \
 
 结果：exit 0，`** TEST SUCCEEDED **`；193 个测试函数 / 389 个参数化用例全部通过，0 失败 0 跳过（新增 14 个测试函数 / 19 个用例）。App 在同一模拟器安装并启动成功（4 个中文 tab 正常，无崩溃）。
 
+合并 `integration/nextstep-v1`（`ad3af0f`，含 tickets 15/19）后重跑同一套件：exit 0，`** TEST SUCCEEDED **`，211 个测试函数 / 412 个参数化用例全部通过，0 失败 0 跳过。合并仅一处冲突在 `ApplicationDetailView.swift`（保留关联岗位 Section 与 ticket 15 状态历史入口 Section）。
+
 ### 决策与说明
 
 - 确认门禁放在 ViewModel（`importApplication(confirmed:)`）而不是只靠 View 弹窗，使「终态需确认才创建」可单测；View 依据 `importRequiresConfirmation` 弹 confirmationDialog 后传 `confirmed: true`。导航仍由 View 调 `router.openApplication`，VM 不持有 router。
-- `applications(for:)` 读取失败时记录 data/ui 日志并退化为 `.importNew`（岗位仍可浏览/导入）；spec 未定义该路径，选择不阻塞详情页。
+- `applications(for:)` 读取失败时记录 ui 日志并退化为 `.importNew`（岗位仍可浏览/导入）；spec 未定义该路径，选择不阻塞详情页。
 - 同一岗位存在多条进行中申请时取 repository 返回顺序中的第一条非终态；spec 未规定选择规则。
 - 导入成功跨 tab 后 Discover 栈仍停在该岗位详情（未主动清栈）；spec 只要求切 tab 并 push 新详情。
 - 申请详情摘要通过纯 helper 生成展示输入，便于测试；关联区块追加在备注 Section 之后，尽量减少与并行 ticket 15/16 对 `ApplicationDetailView.swift` 的冲突面。
