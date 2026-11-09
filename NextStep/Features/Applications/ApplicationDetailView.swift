@@ -9,6 +9,7 @@ struct ApplicationDetailView: View {
     private enum PresentedSheet: String, Identifiable {
         case editor
         case statusChange
+        case statusHistory
 
         var id: String { rawValue }
     }
@@ -68,6 +69,13 @@ struct ApplicationDetailView: View {
                 }
             case .statusChange:
                 ApplicationStatusChangeView(viewModel: viewModel)
+            case .statusHistory:
+                if let application = viewModel.application {
+                    StatusHistorySheet(
+                        repository: container.applicationRepository,
+                        applicationID: application.id
+                    )
+                }
             }
         }
         .confirmationDialog(
@@ -144,6 +152,14 @@ struct ApplicationDetailView: View {
                 } else {
                     Text("暂无备注")
                         .foregroundStyle(.secondary)
+                }
+            }
+
+            Section {
+                Button {
+                    presentedSheet = .statusHistory
+                } label: {
+                    Label("状态历史", systemImage: "clock.arrow.circlepath")
                 }
             }
         }
