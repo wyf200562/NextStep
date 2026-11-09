@@ -10,6 +10,7 @@ struct ApplicationDetailView: View {
         case editor
         case statusChange
         case roundEditor
+        case statusHistory
 
         var id: String { rawValue }
     }
@@ -85,6 +86,13 @@ struct ApplicationDetailView: View {
                 ) {
                     presentedSheet = nil
                     roundBeingEdited = nil
+                }
+            case .statusHistory:
+                if let application = viewModel.application {
+                    StatusHistorySheet(
+                        repository: container.applicationRepository,
+                        applicationID: application.id
+                    )
                 }
             }
         }
@@ -191,6 +199,14 @@ struct ApplicationDetailView: View {
                 } else {
                     Text("暂无备注")
                         .foregroundStyle(.secondary)
+                }
+            }
+
+            Section {
+                Button {
+                    presentedSheet = .statusHistory
+                } label: {
+                    Label("状态历史", systemImage: "clock.arrow.circlepath")
                 }
             }
         }
