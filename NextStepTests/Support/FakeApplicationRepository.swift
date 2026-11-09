@@ -130,7 +130,16 @@ final class FakeApplicationRepository: ApplicationRepository {
         return storedApplications[id]
     }
 
-    func applications(for jobPosting: JobPosting) throws -> [Application] { [] }
+    /// Applications returned by `applications(for:)`; set by import/dedup tests.
+    var applicationsForJob: [Application] = []
+    var applicationsForJobError: (any Error)?
+
+    func applications(for jobPosting: JobPosting) throws -> [Application] {
+        if let applicationsForJobError {
+            throw applicationsForJobError
+        }
+        return applicationsForJob
+    }
 
     func statusChanges(for application: Application) throws -> [StatusChange] { [] }
 
