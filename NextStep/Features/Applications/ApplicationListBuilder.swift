@@ -73,7 +73,10 @@ enum ApplicationListBuilder {
         }
     }
 
-    private static func isDueSoon(
+    /// The shared 7-day due-soon rule: a non-terminal application with a deadline or a pending
+    /// interview inside today 00:00–today+7 23:59. The overview's 7-day count reuses it so the two
+    /// screens cannot disagree.
+    static func isDueSoon(
         _ application: Application,
         now: Date,
         calendar: Calendar
@@ -125,21 +128,5 @@ enum ApplicationListBuilder {
             return lhs.application.lastModifiedAt > rhs.application.lastModifiedAt
         }
         return lhs.application.id.uuidString < rhs.application.id.uuidString
-    }
-}
-
-private extension ApplicationStatus {
-    var isActive: Bool {
-        switch self {
-        case .wishlist, .applied, .oa, .interview: true
-        case .offer, .rejected, .withdrawn: false
-        }
-    }
-
-    var isEnded: Bool {
-        switch self {
-        case .rejected, .withdrawn: true
-        case .wishlist, .applied, .oa, .interview, .offer: false
-        }
     }
 }

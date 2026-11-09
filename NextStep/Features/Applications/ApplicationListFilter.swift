@@ -20,3 +20,22 @@ nonisolated enum ApplicationListFilter: String, CaseIterable, Identifiable, Hash
         }
     }
 }
+
+/// Status-group rules shared by the applications list and the overview counts.
+extension ApplicationStatus {
+    /// Wishlist, applied, OA, and interview are still in play for the 进行中 filter.
+    var isActive: Bool {
+        switch self {
+        case .wishlist, .applied, .oa, .interview: true
+        case .offer, .rejected, .withdrawn: false
+        }
+    }
+
+    /// Rejected and withdrawn are the finished states for the 已结束 filter.
+    var isEnded: Bool {
+        switch self {
+        case .rejected, .withdrawn: true
+        case .wishlist, .applied, .oa, .interview, .offer: false
+        }
+    }
+}
