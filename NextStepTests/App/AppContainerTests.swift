@@ -21,7 +21,10 @@ struct AppContainerTests {
         #expect(container.dateProvider.now == fixedNow)
         #expect(container.router === router)
         #expect(container.router.selectedTab == .applications)
-        #expect(container.jobSourceFactory == nil)
+        #expect(container.jobSourceFactory.makeManual(
+            ManualJobInput(title: "iOS Intern", companyName: "Acme", descriptionPlainText: "JD")
+        ).intakeMethod == .manual)
+        #expect(container.jobRepository is SwiftDataJobRepository)
         #expect(container.matchProvider == nil)
     }
 
@@ -33,15 +36,13 @@ struct AppContainerTests {
         #expect(profile.timeZoneIdentifier == TimeZone.current.identifier)
     }
 
-    @Test func placeholderRepositoriesFailWithTypedErrorsInsteadOfCrashing() throws {
+    @Test func applicationRepositoryStaysUnavailableWhileJobRepositoryReadsTheCache() throws {
         let container = try AppContainer.makeInMemory()
 
         #expect(throws: RepositoryError.unavailable) {
             _ = try container.applicationRepository.allApplications()
         }
-        #expect(throws: RepositoryError.unavailable) {
-            _ = try container.jobRepository.cachedJobs()
-        }
+        #expect(try container.jobRepository.cachedJobs().isEmpty)
         #expect(container.jobRepository.lastRefreshAt(for: .remotive) == nil)
     }
 }
