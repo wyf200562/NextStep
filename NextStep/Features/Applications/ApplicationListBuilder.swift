@@ -13,17 +13,7 @@ struct ApplicationListSnapshot {
         var id: UUID { application.id }
     }
 
-    struct NearestNode: Equatable {
-        enum Kind: Equatable {
-            case deadline
-            case interview
-        }
-
-        let kind: Kind
-        let date: Date
-        let roundLabel: String?
-        let roundID: UUID?
-    }
+    typealias NearestNode = ApplicationNextNode
 
     let rows: [Row]
     let totalCount: Int
@@ -42,7 +32,7 @@ enum ApplicationListBuilder {
             .map {
                 ApplicationListSnapshot.Row(
                     application: $0,
-                    nearestNode: nearestUpcomingNode(for: $0, at: now)
+                    nearestNode: ApplicationNextNode.nearest(for: $0, at: now)
                 )
             }
 
@@ -103,44 +93,6 @@ enum ApplicationListBuilder {
         }
         return application.interviewRounds.contains {
             $0.result == .pending && isInsideWindow($0.scheduledAt)
-        }
-    }
-
-    // MARK: - Nearest node
-
-    private static func nearestUpcomingNode(
-        for application: Application,
-        at now: Date
-    ) -> ApplicationListSnapshot.NearestNode? {
-        var candidates: [ApplicationListSnapshot.NearestNode] = []
-
-        if let deadline = application.deadline, deadline >= now {
-            candidates.append(.init(
-                kind: .deadline,
-                date: deadline,
-                roundLabel: nil,
-                roundID: nil
-            ))
-        }
-        for round in application.interviewRounds
-        where round.result == .pending && round.scheduledAt >= now {
-            candidates.append(.init(
-                kind: .interview,
-                date: round.scheduledAt,
-                roundLabel: round.label,
-                roundID: round.id
-            ))
-        }
-
-        return candidates.min { lhs, rhs in
-            if lhs.date != rhs.date {
-                return lhs.date < rhs.date
-            }
-            if lhs.kind != rhs.kind {
-                // A deadline wins a dead heat; the remaining tie-break matches the interview rule.
-                return lhs.kind == .deadline
-            }
-            return (lhs.roundID?.uuidString ?? "") < (rhs.roundID?.uuidString ?? "")
         }
     }
 

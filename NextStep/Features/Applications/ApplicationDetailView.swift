@@ -9,6 +9,7 @@ struct ApplicationDetailView: View {
     private enum PresentedSheet: String, Identifiable {
         case editor
         case statusChange
+        case roundEditor
         case statusHistory
 
         var id: String { rawValue }
@@ -18,6 +19,8 @@ struct ApplicationDetailView: View {
     @Environment(AppContainer.self) private var container
     @State private var viewModel: ApplicationDetailViewModel
     @State private var presentedSheet: PresentedSheet?
+    @State private var roundBeingEdited: InterviewRound?
+    @State private var isShowingMarkAsInterviewPrompt = false
     @State private var isConfirmingDelete = false
 
     init(container: AppContainer, applicationID: UUID) {
@@ -58,7 +61,13 @@ struct ApplicationDetailView: View {
                 viewModel.load()
             }
         }
-        .sheet(item: $presentedSheet) { sheet in
+        .sheet(item: $presentedSheet, onDismiss: {
+            // Present the prompt only after the editor sheet is gone; presenting it from inside
+            // the sheet can be swallowed by the still-visible dismissal.
+            if viewModel.isPromptingMarkAsInterview {
+                isShowingMarkAsInterviewPrompt = true
+            }
+        }) { sheet in
             switch sheet {
             case .editor:
                 if let application = viewModel.application {
@@ -69,6 +78,15 @@ struct ApplicationDetailView: View {
                 }
             case .statusChange:
                 ApplicationStatusChangeView(viewModel: viewModel)
+            case .roundEditor:
+                InterviewRoundEditorView(
+                    container: container,
+                    detailViewModel: viewModel,
+                    round: roundBeingEdited
+                ) {
+                    presentedSheet = nil
+                    roundBeingEdited = nil
+                }
             case .statusHistory:
                 if let application = viewModel.application {
                     StatusHistorySheet(
@@ -130,7 +148,36 @@ struct ApplicationDetailView: View {
             }
 
             Section("下一个节点") {
-                nextNodeCard(for: application)
+                nextNodeCard
+            }
+
+            Section("面试轮次") {
+                if viewModel.rounds.isEmpty {
+                    Text("还没有面试轮次")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(viewModel.rounds, id: \.id) { round in
+                        Button {
+                            roundBeingEdited = round
+                            presentedSheet = .roundEditor
+                        } label: {
+                            roundRow(round)
+                        }
+                        .buttonStyle(.plain)
+                        .swipeActions(edge: .trailing) {
+                            Button("删除", role: .destructive) {
+                                viewModel.deleteRound(round)
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    roundBeingEdited = nil
+                    presentedSheet = .roundEditor
+                } label: {
+                    Label("添加面试轮次", systemImage: "plus")
+                }
             }
 
             Section("岗位快照") {
@@ -163,29 +210,98 @@ struct ApplicationDetailView: View {
                 }
             }
         }
+        .alert(
+            "是否标记为面试中？",
+            isPresented: markAsInterviewBinding
+        ) {
+            Button("标记为面试中") {
+                isShowingMarkAsInterviewPrompt = false
+                viewModel.confirmMarkAsInterview()
+            }
+            Button("暂不", role: .cancel) {
+                isShowingMarkAsInterviewPrompt = false
+                viewModel.cancelMarkAsInterviewPrompt()
+            }
+        } message: {
+            Text("已添加未来的面试轮次。")
+        }
     }
 
     @ViewBuilder
-    private func nextNodeCard(for application: Application) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let deadline = application.deadline {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "calendar.badge.clock")
-                        .foregroundStyle(.orange)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("截止")
-                            .font(.subheadline.weight(.semibold))
-                        Text(ApplicationDateFormatting.monthDayTime(deadline))
-                    }
+    private var nextNodeCard: some View {
+        if let node = viewModel.nextNode {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: node.kind == .deadline ? "calendar.badge.clock" : "person.2")
+                    .foregroundStyle(node.kind == .deadline ? Color.orange : Color.blue)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(nextNodeTitle(node))
+                        .font(.subheadline.weight(.semibold))
+                    Text(ApplicationDateFormatting.monthDayTime(node.date))
                 }
+            }
+            .padding(.vertical, 2)
+        } else {
+            Text("暂无即将到来的截止或面试")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 2)
+        }
+    }
+
+    private func nextNodeTitle(_ node: ApplicationNextNode) -> String {
+        switch node.kind {
+        case .deadline:
+            "截止"
+        case .interview:
+            if let label = node.roundLabel, !label.isEmpty {
+                "面试 · \(label)"
             } else {
-                Label("暂未设置截止日期", systemImage: "calendar")
+                "面试"
+            }
+        }
+    }
+
+    private func roundRow(_ round: InterviewRound) -> some View {
+        let isPast = round.scheduledAt < viewModel.currentDate
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(roundTitle(round))
+                    .font(.subheadline.weight(.semibold))
+                Spacer(minLength: 8)
+                Text(round.result.displayName)
+                    .font(.caption)
+                    .foregroundStyle(roundResultColor(round.result))
+            }
+            Text("\(round.format.displayName) · \(ApplicationDateFormatting.monthDayTime(round.scheduledAt))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if let contact = round.contact, !contact.isEmpty {
+                Text("联系人：\(contact)")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
-            // Ticket 16 adds the nearest pending InterviewRound row to this card.
         }
+        .foregroundStyle(isPast ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
         .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("编辑这轮面试")
+    }
+
+    private func roundTitle(_ round: InterviewRound) -> String {
+        if let label = round.label, !label.isEmpty {
+            return label
+        }
+        return "面试"
+    }
+
+    private func roundResultColor(_ result: InterviewResult) -> Color {
+        switch result {
+        case .pending: .secondary
+        case .passed: .green
+        case .failed: .red
+        case .cancelled: .secondary
+        }
     }
 
     private var failureState: some View {
@@ -201,10 +317,19 @@ struct ApplicationDetailView: View {
         }
     }
 
-    /// Alerts are suppressed while the status sheet is up; the sheet shows its own inline error.
+    /// The mark-as-interview alert is shown only after the round editor sheet has fully dismissed.
+    /// The alert buttons resolve the ViewModel intent explicitly; the binding only drives visibility.
+    private var markAsInterviewBinding: Binding<Bool> {
+        Binding(
+            get: { isShowingMarkAsInterviewPrompt },
+            set: { isShowingMarkAsInterviewPrompt = $0 }
+        )
+    }
+
+    /// Alerts are suppressed while a sheet is up; sheets show their own inline error.
     private var actionErrorBinding: Binding<Bool> {
         Binding(
-            get: { viewModel.actionErrorMessage != nil && presentedSheet != .statusChange },
+            get: { viewModel.actionErrorMessage != nil && presentedSheet == nil },
             set: { isPresented in
                 if !isPresented {
                     viewModel.clearActionError()

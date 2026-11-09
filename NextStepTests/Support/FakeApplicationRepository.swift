@@ -51,6 +51,33 @@ final class FakeApplicationRepository: ApplicationRepository {
     var statusChangeCalls: [StatusChangeCall] = []
     var statusChangeError: (any Error)?
 
+    struct RoundAddCall {
+        let application: Application
+        let scheduledAt: Date
+        let format: InterviewFormat
+        let label: String?
+        let contact: String?
+        let notes: String?
+        let result: InterviewResult
+    }
+
+    struct RoundUpdateCall {
+        let round: InterviewRound
+        let scheduledAt: Date
+        let format: InterviewFormat
+        let label: String?
+        let contact: String?
+        let notes: String?
+        let result: InterviewResult
+    }
+
+    var roundAddCalls: [RoundAddCall] = []
+    var roundAddError: (any Error)?
+    var roundUpdateCalls: [RoundUpdateCall] = []
+    var roundUpdateError: (any Error)?
+    var roundDeleteCalls: [InterviewRound] = []
+    var roundDeleteError: (any Error)?
+
     func createApplication(
         companyName: String,
         roleTitle: String,
@@ -171,7 +198,29 @@ final class FakeApplicationRepository: ApplicationRepository {
         notes: String?,
         result: InterviewResult
     ) throws -> InterviewRound {
-        throw RepositoryError.unavailable
+        roundAddCalls.append(RoundAddCall(
+            application: application,
+            scheduledAt: scheduledAt,
+            format: format,
+            label: label,
+            contact: contact,
+            notes: notes,
+            result: result
+        ))
+        if let roundAddError {
+            throw roundAddError
+        }
+        let round = InterviewRound(
+            scheduledAt: scheduledAt,
+            format: format,
+            result: result,
+            label: label,
+            contact: contact,
+            notes: notes
+        )
+        application.interviewRounds.append(round)
+        round.application = application
+        return round
     }
 
     func updateInterviewRound(
@@ -183,10 +232,31 @@ final class FakeApplicationRepository: ApplicationRepository {
         notes: String?,
         result: InterviewResult
     ) throws {
-        throw RepositoryError.unavailable
+        roundUpdateCalls.append(RoundUpdateCall(
+            round: round,
+            scheduledAt: scheduledAt,
+            format: format,
+            label: label,
+            contact: contact,
+            notes: notes,
+            result: result
+        ))
+        if let roundUpdateError {
+            throw roundUpdateError
+        }
+        round.scheduledAt = scheduledAt
+        round.format = format
+        round.label = label
+        round.contact = contact
+        round.notes = notes
+        round.result = result
     }
 
     func deleteInterviewRound(_ round: InterviewRound) throws {
-        throw RepositoryError.unavailable
+        roundDeleteCalls.append(round)
+        if let roundDeleteError {
+            throw roundDeleteError
+        }
+        round.application?.interviewRounds.removeAll { $0.id == round.id }
     }
 }
