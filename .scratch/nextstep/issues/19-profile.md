@@ -15,7 +15,7 @@
 
 ## Answer
 
-日期：2026-11-09。实现 commit：`9e84d1b`（`ticket/19-profile`，基于 integration/nextstep-v1 `0829f15`）；已合并 integration tip `4110114`（ticket 14/20），merge commit `aba840a`。
+日期：2026-11-09。实现 commit：`9e84d1b`（`ticket/19-profile`，基于 integration/nextstep-v1 `0829f15`）；已合并 integration tip `752c2b5`（ticket 14/15/20），最终 merge commit `d418914`。
 
 ### 交付内容
 
@@ -40,10 +40,10 @@
 
 ```bash
 xcodebuild -project NextStep.xcodeproj -scheme NextStep \
-  -destination 'platform=iOS Simulator,id=17EBAB32-1B3E-418E-8B69-8329F6787CAC' test
+  -destination 'platform=iOS Simulator,id=17EBAB32-1B3E-418E-8B69-8329F6787CAC' test -quiet
 ```
 
-结果：exit 0，`** TEST SUCCEEDED **`；合并 integration 后 xcresult summary：`totalTestCount 194`（测试函数）、设备级 `passedTests 385`（含参数化用例）、`failedTests 0`、`skippedTests 0`（iPhone Air / iOS 27.0）。新增 15 个测试函数（ProfileViewModel 12 + TagList 3）。
+结果：exit 0，`** TEST SUCCEEDED **`（`-quiet` 仅降低输出，不影响执行）；合并 integration 后 xcresult summary：`totalTestCount 197`（测试函数）、设备级 `passedTests 393`（含参数化用例）、`failedTests 0`、`skippedTests 0`（iPhone Air / iOS 27.0）。新增 15 个测试函数（ProfileViewModel 12 + TagList 3）。应用已在 iPhone Air 模拟器安装并启动，4 个 tab 正常显示。
 
 ### 决策与说明
 
