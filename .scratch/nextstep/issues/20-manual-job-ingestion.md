@@ -44,6 +44,8 @@ xcodebuild -project NextStep.xcodeproj -scheme NextStep \
 
 结果：exit 0，`** TEST SUCCEEDED **`；61 个测试用例（46 个测试函数，含参数化用例）全部通过，0 失败。新增覆盖：ManualJobSource 校验/URL/标签/身份键/异步、intern 推断；SwiftDataJobRepository 导入持久化、identityKey upsert 幂等且保留 createdAt、缓存排序与 id 兜底、refreshDiscover 占位与 lastRefreshAt；DiscoverViewModel 缓存加载、N/M/K 计数、只看实习过滤、错误中文映射；ManualImportViewModel 内联校验、URL 校验、成功保存的输入归一化、失败保留内容与中文错误、岗位类型映射。App 已在同一模拟器安装并启动成功（概览 tab 与 4 个中文 tab 正常显示）。
 
+合并前先把 integration/nextstep-v1 `3f090ae`（tickets 13/14/18）合入本分支，merge commit `513025c`；冲突仅出现在 `AppContainer` / `AppContainerTests`（组合根与默认仓库），已同时保留匹配服务、ApplicationRepository 与 JobSourceFactory/SwiftDataJobRepository 的默认装配。合并后再次运行同一命令：exit 0，370 个测试用例（179 个测试函数）全部通过，0 失败。
+
 ### 决策与说明
 
 - 排序兜底方向：spec 只写「同时间 id 兜底」，本实现取 **id 升序**并在测试中固定，避免未来实现歧义。
