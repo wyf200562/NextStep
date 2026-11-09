@@ -1,0 +1,193 @@
+import Foundation
+
+/// The derived, read-only state of the application list.
+///
+/// Applications are fetched with `@Query`; this snapshot applies the filter, ordering, and summary
+/// rules so the view stays free of business logic. `now` and `calendar` are injected to keep the
+/// seven-day window and upcoming-node ordering deterministic in tests.
+struct ApplicationListSnapshot {
+    struct Row: Identifiable {
+        let application: Application
+        let nearestNode: NearestNode?
+
+        var id: UUID { application.id }
+    }
+
+    struct NearestNode: Equatable {
+        enum Kind: Equatable {
+            case deadline
+            case interview
+        }
+
+        let kind: Kind
+        let date: Date
+        let roundLabel: String?
+        let roundID: UUID?
+    }
+
+    let rows: [Row]
+    let totalCount: Int
+    let activeCount: Int
+}
+
+enum ApplicationListBuilder {
+    static func snapshot(
+        for filter: ApplicationListFilter,
+        applications: [Application],
+        now: Date,
+        calendar: Calendar
+    ) -> ApplicationListSnapshot {
+        let rows = applications
+            .filter { matches($0, filter: filter, now: now, calendar: calendar) }
+            .map {
+                ApplicationListSnapshot.Row(
+                    application: $0,
+                    nearestNode: nearestUpcomingNode(for: $0, at: now)
+                )
+            }
+
+        let ordered: [ApplicationListSnapshot.Row]
+        switch filter {
+        case .all, .active, .dueSoon:
+            ordered = rows.sorted(by: upcomingFirst)
+        case .offer, .ended:
+            ordered = rows.sorted(by: lastModifiedFirst)
+        }
+
+        return ApplicationListSnapshot(
+            rows: ordered,
+            totalCount: applications.count,
+            activeCount: applications.filter { $0.status.isActive }.count
+        )
+    }
+
+    // MARK: - Filtering
+
+    private static func matches(
+        _ application: Application,
+        filter: ApplicationListFilter,
+        now: Date,
+        calendar: Calendar
+    ) -> Bool {
+        switch filter {
+        case .all:
+            true
+        case .active:
+            application.status.isActive
+        case .dueSoon:
+            isDueSoon(application, now: now, calendar: calendar)
+        case .offer:
+            application.status == .offer
+        case .ended:
+            application.status.isEnded
+        }
+    }
+
+    private static func isDueSoon(
+        _ application: Application,
+        now: Date,
+        calendar: Calendar
+    ) -> Bool {
+        guard !application.status.isEnded else { return false }
+
+        let today = calendar.startOfDay(for: now)
+        guard let windowEnd = calendar.date(byAdding: .day, value: 8, to: today) else {
+            return false
+        }
+        func isInsideWindow(_ date: Date) -> Bool {
+            date >= today && date < windowEnd
+        }
+
+        if let deadline = application.deadline, isInsideWindow(deadline) {
+            return true
+        }
+        return application.interviewRounds.contains {
+            $0.result == .pending && isInsideWindow($0.scheduledAt)
+        }
+    }
+
+    // MARK: - Nearest node
+
+    private static func nearestUpcomingNode(
+        for application: Application,
+        at now: Date
+    ) -> ApplicationListSnapshot.NearestNode? {
+        var candidates: [ApplicationListSnapshot.NearestNode] = []
+
+        if let deadline = application.deadline, deadline >= now {
+            candidates.append(.init(
+                kind: .deadline,
+                date: deadline,
+                roundLabel: nil,
+                roundID: nil
+            ))
+        }
+        for round in application.interviewRounds
+        where round.result == .pending && round.scheduledAt >= now {
+            candidates.append(.init(
+                kind: .interview,
+                date: round.scheduledAt,
+                roundLabel: round.label,
+                roundID: round.id
+            ))
+        }
+
+        return candidates.min { lhs, rhs in
+            if lhs.date != rhs.date {
+                return lhs.date < rhs.date
+            }
+            if lhs.kind != rhs.kind {
+                // A deadline wins a dead heat; the remaining tie-break matches the interview rule.
+                return lhs.kind == .deadline
+            }
+            return (lhs.roundID?.uuidString ?? "") < (rhs.roundID?.uuidString ?? "")
+        }
+    }
+
+    // MARK: - Ordering
+
+    private static func upcomingFirst(
+        _ lhs: ApplicationListSnapshot.Row,
+        _ rhs: ApplicationListSnapshot.Row
+    ) -> Bool {
+        switch (lhs.nearestNode, rhs.nearestNode) {
+        case let (left?, right?):
+            if left.date != right.date {
+                return left.date < right.date
+            }
+            return lhs.application.id.uuidString < rhs.application.id.uuidString
+        case (_?, nil):
+            return true
+        case (nil, _?):
+            return false
+        case (nil, nil):
+            return lastModifiedFirst(lhs, rhs)
+        }
+    }
+
+    private static func lastModifiedFirst(
+        _ lhs: ApplicationListSnapshot.Row,
+        _ rhs: ApplicationListSnapshot.Row
+    ) -> Bool {
+        if lhs.application.lastModifiedAt != rhs.application.lastModifiedAt {
+            return lhs.application.lastModifiedAt > rhs.application.lastModifiedAt
+        }
+        return lhs.application.id.uuidString < rhs.application.id.uuidString
+    }
+}
+
+private extension ApplicationStatus {
+    var isActive: Bool {
+        switch self {
+        case .wishlist, .applied, .oa, .interview: true
+        case .offer, .rejected, .withdrawn: false
+        }
+    }
+
+    var isEnded: Bool {
+        switch self {
+        case .rejected, .withdrawn: true
+        case .wishlist, .applied, .oa, .interview, .offer: false
+        }
+    }
+}

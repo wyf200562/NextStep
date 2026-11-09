@@ -13,7 +13,7 @@ struct ApplicationsTabView: View {
                 .navigationDestination(for: ApplicationsRoute.self) { route in
                     switch route {
                     case .detail(let applicationID):
-                        ApplicationDetailView(applicationID: applicationID)
+                        ApplicationDetailView(container: container, applicationID: applicationID)
                     }
                 }
         }

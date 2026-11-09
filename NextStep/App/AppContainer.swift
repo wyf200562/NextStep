@@ -19,7 +19,7 @@ final class AppContainer {
     let jobRepository: any JobRepository
     let jobSourceFactory: JobSourceFactory
 
-    /// Reserved slot for the matching service owned by ticket 18.
+    /// The matching service, or nil when the bundled lexicon fails to load.
     var matchProvider: (any MatchProviding)?
 
     init(
@@ -30,15 +30,21 @@ final class AppContainer {
         userProfileRepository: (any UserProfileRepository)? = nil,
         jobRepository: (any JobRepository)? = nil,
         jobSourceFactory: JobSourceFactory? = nil,
-        matchProvider: (any MatchProviding)? = nil
+        matchProvider: (any MatchProviding)? = nil,
+        matchingLexiconLoader: MatchingLexiconLoader = MatchingLexiconLoader()
     ) {
         self.modelContainer = modelContainer
         self.modelContext = modelContainer.mainContext
         self.dateProvider = dateProvider
         self.router = router
-        self.applicationRepository = applicationRepository ?? UnavailableApplicationRepository()
-        self.userProfileRepository = userProfileRepository
+        self.applicationRepository = applicationRepository
+            ?? SwiftDataApplicationRepository(
+                context: modelContainer.mainContext,
+                dateProvider: dateProvider
+            )
+        let resolvedProfileRepository = userProfileRepository
             ?? SwiftDataUserProfileRepository(context: modelContainer.mainContext)
+        self.userProfileRepository = resolvedProfileRepository
         let resolvedFactory = jobSourceFactory ?? JobSourceFactory(
             makeRemote: { _ in PlaceholderRemoteJobSource() },
             makeManual: { ManualJobSource(input: $0) }
@@ -49,7 +55,23 @@ final class AppContainer {
             dateProvider: dateProvider,
             jobSourceFactory: resolvedFactory
         )
-        self.matchProvider = matchProvider
+
+        if let matchProvider {
+            self.matchProvider = matchProvider
+        } else {
+            do {
+                let lexicon = try matchingLexiconLoader.load()
+                self.matchProvider = MatchService(
+                    profileRepository: resolvedProfileRepository,
+                    lexicon: lexicon
+                )
+            } catch {
+                AppLogger.matching.error(
+                    "Matching lexicon unavailable; matching disabled: \(String(describing: error), privacy: .public)"
+                )
+                self.matchProvider = nil
+            }
+        }
     }
 
     /// Creates the production container backed by the on-disk store.
