@@ -249,6 +249,31 @@ struct ProfileViewModelTests {
         #expect(saved.graduationYear == 2027)
     }
 
+    @Test("enabling availability defaults to the injected clock")
+    func availabilityDefaultsUseTheInjectedClock() throws {
+        let fixture = try Fixtures.makeRepository()
+        let fixedNow = Fixtures.date(year: 2026, month: 11, day: 9)
+        let viewModel = ProfileViewModel(
+            repository: fixture.repository,
+            lexicon: nil,
+            dateProvider: FixedDateProvider(now: fixedNow)
+        )
+
+        #expect(viewModel.draft.availableFrom == nil)
+        #expect(viewModel.draft.availableUntil == nil)
+
+        viewModel.setAvailableFromEnabled(true)
+        #expect(viewModel.draft.availableFrom == fixedNow)
+
+        viewModel.setAvailableUntilEnabled(true)
+        #expect(viewModel.draft.availableUntil == fixedNow)
+
+        viewModel.setAvailableFromEnabled(false)
+        viewModel.setAvailableUntilEnabled(false)
+        #expect(viewModel.draft.availableFrom == nil)
+        #expect(viewModel.draft.availableUntil == nil)
+    }
+
     @Test("target roles and preferred locations trim, reject blanks, and dedupe")
     func tagEntryTrimsAndDedupes() throws {
         let fixture = try Fixtures.makeRepository()

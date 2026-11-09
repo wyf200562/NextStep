@@ -32,6 +32,25 @@ final class Application {
         set { statusRaw = newValue.rawValue }
     }
 
+    /// The first `StatusChange` that marked this application as applied.
+    ///
+    /// Records are ordered by `changedAt` ascending with `id` as the tie-breaker. The initial
+    /// creation record participates when it is itself `.applied`. Derived, never persisted.
+    var firstAppliedChange: StatusChange? {
+        statusChanges
+            .filter { $0.toStatus == .applied }
+            .min { lhs, rhs in
+                if lhs.changedAt != rhs.changedAt { return lhs.changedAt < rhs.changedAt }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+    }
+
+    /// `changedAt` of the first applied record; nil until the application has been applied.
+    /// Derived, never persisted.
+    var appliedAt: Date? {
+        firstAppliedChange?.changedAt
+    }
+
     init(
         id: UUID = UUID(),
         companyName: String,

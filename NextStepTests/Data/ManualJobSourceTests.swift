@@ -70,11 +70,15 @@ struct ManualJobSourceTests {
 
     @Test(arguments: [
         ("iOS Intern", nil, "internship"),
+        ("Platform Interns", nil, "internship"),
         ("市场实习生", "", "internship"),
         ("INTERN, Platform", "  ", "internship"),
         ("iOS Intern", "full_time", "full_time"),
         ("Backend Engineer", nil, nil),
         ("Backend Engineer", "  ", nil),
+        ("Internal Tools Engineer", nil, nil),
+        ("International Sales Manager", nil, nil),
+        ("Internationalization Engineer", "  ", nil),
     ])
     func manualSourceInfersInternshipOnlyWhenJobTypeIsUnset(
         title: String,

@@ -88,8 +88,4 @@ nonisolated struct SkillDictionary: Sendable, Equatable {
     func skillID(forAlias alias: String) -> SkillID? {
         ownerByAlias[MatchingTextNormalizer.normalize(alias)]
     }
-
-    func skill(matchingAlias alias: String) -> Skill? {
-        skillID(forAlias: alias).flatMap(skill(id:))
-    }
 }

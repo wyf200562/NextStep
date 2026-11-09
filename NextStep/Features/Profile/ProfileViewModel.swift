@@ -14,6 +14,7 @@ final class ProfileViewModel {
 
     private let repository: any UserProfileRepository
     private let lexicon: MatchingLexicon?
+    private let dateProvider: any DateProvider
 
     var draft: ProfileDraft
     private var savedDraft: ProfileDraft
@@ -23,9 +24,14 @@ final class ProfileViewModel {
     private(set) var saveErrorMessage: String?
     private(set) var isSaving = false
 
-    init(repository: any UserProfileRepository, lexicon: MatchingLexicon?) {
+    init(
+        repository: any UserProfileRepository,
+        lexicon: MatchingLexicon?,
+        dateProvider: any DateProvider = SystemDateProvider()
+    ) {
         self.repository = repository
         self.lexicon = lexicon
+        self.dateProvider = dateProvider
         self.draft = ProfileDraft()
         self.savedDraft = ProfileDraft()
         load()
@@ -226,7 +232,7 @@ final class ProfileViewModel {
     func setAvailableFromEnabled(_ isEnabled: Bool) {
         if isEnabled {
             if draft.availableFrom == nil {
-                draft.availableFrom = Date()
+                draft.availableFrom = dateProvider.now
             }
         } else {
             draft.availableFrom = nil
@@ -236,7 +242,7 @@ final class ProfileViewModel {
     func setAvailableUntilEnabled(_ isEnabled: Bool) {
         if isEnabled {
             if draft.availableUntil == nil {
-                draft.availableUntil = Date()
+                draft.availableUntil = dateProvider.now
             }
         } else {
             draft.availableUntil = nil

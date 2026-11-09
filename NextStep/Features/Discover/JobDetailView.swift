@@ -7,56 +7,50 @@ import SwiftUI
 /// returns application ids and the router performs cross-tab pushes.
 struct JobDetailView: View {
     @Environment(AppContainer.self) private var container
-    let jobID: UUID
 
-    @State private var viewModel: JobDetailViewModel?
+    @State private var viewModel: JobDetailViewModel
+    @State private var didLoad = false
     @State private var isConfirmingReimport = false
 
+    init(container: AppContainer, jobID: UUID) {
+        _viewModel = State(initialValue: JobDetailViewModel(
+            jobRepository: container.jobRepository,
+            applicationRepository: container.applicationRepository,
+            dateProvider: container.dateProvider,
+            jobID: jobID,
+            matchProvider: container.matchProvider
+        ))
+    }
+
     var body: some View {
-        Group {
-            if let viewModel {
-                content(viewModel)
-            } else {
-                ProgressView("正在加载…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+        content(viewModel)
+            .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle("岗位详情")
+            .navigationBarTitleDisplayMode(.inline)
+            .task {
+                guard !didLoad else { return }
+                didLoad = true
+                viewModel.load()
             }
-        }
-        .background(Color(uiColor: .systemGroupedBackground))
-        .navigationTitle("岗位详情")
-        .navigationBarTitleDisplayMode(.inline)
-        .task {
-            guard viewModel == nil else { return }
-            let model = JobDetailViewModel(
-                jobRepository: container.jobRepository,
-                applicationRepository: container.applicationRepository,
-                dateProvider: container.dateProvider,
-                jobID: jobID,
-                matchProvider: container.matchProvider
-            )
-            model.load()
-            viewModel = model
-        }
-        .confirmationDialog(
-            "再次导入为申请？",
-            isPresented: $isConfirmingReimport,
-            titleVisibility: .visible
-        ) {
-            Button("再次导入") {
-                if let viewModel {
+            .confirmationDialog(
+                "再次导入为申请？",
+                isPresented: $isConfirmingReimport,
+                titleVisibility: .visible
+            ) {
+                Button("再次导入") {
                     performImport(confirmed: true, viewModel: viewModel)
                 }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("这个岗位已有已结束的申请。导入会新建一条申请记录，不会修改旧记录。")
             }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("这个岗位已有已结束的申请。导入会新建一条申请记录，不会修改旧记录。")
-        }
-        .alert("操作失败", isPresented: importErrorBinding) {
-            Button("好", role: .cancel) {
-                viewModel?.clearImportError()
+            .alert("操作失败", isPresented: importErrorBinding) {
+                Button("好", role: .cancel) {
+                    viewModel.clearImportError()
+                }
+            } message: {
+                Text(viewModel.importErrorMessage ?? "")
             }
-        } message: {
-            Text(viewModel?.importErrorMessage ?? "")
-        }
     }
 
     // MARK: - States
@@ -153,10 +147,10 @@ struct JobDetailView: View {
 
     private var importErrorBinding: Binding<Bool> {
         Binding(
-            get: { viewModel?.importErrorMessage != nil },
+            get: { viewModel.importErrorMessage != nil },
             set: { isPresented in
                 if !isPresented {
-                    viewModel?.clearImportError()
+                    viewModel.clearImportError()
                 }
             }
         )

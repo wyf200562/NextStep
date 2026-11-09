@@ -145,7 +145,7 @@ final class JobDetailViewModel {
     private func classifyImportAction(for posting: JobPosting) -> ImportAction {
         do {
             let applications = try applicationRepository.applications(for: posting)
-            if let active = applications.first(where: { Self.isActive($0.status) }) {
+            if let active = applications.first(where: { $0.status.isActive }) {
                 return .viewExisting(applicationID: active.id)
             }
             return applications.isEmpty ? .importNew : .importAgain
@@ -184,13 +184,6 @@ final class JobDetailViewModel {
         matchAvailability = .unavailable
     }
 
-    /// Active statuses keep the posting out of the re-import path: duplicates are never created.
-    private static func isActive(_ status: ApplicationStatus) -> Bool {
-        switch status {
-        case .wishlist, .applied, .oa, .interview: true
-        case .offer, .rejected, .withdrawn: false
-        }
-    }
 }
 
 /// Typed failures surfaced by `JobDetailViewModel.state`.

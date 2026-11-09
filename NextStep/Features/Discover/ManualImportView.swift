@@ -4,9 +4,15 @@ import SwiftUI
 /// replaces this screen with the new posting's detail.
 struct ManualImportView: View {
     @Environment(AppContainer.self) private var container
+    @Environment(\.dismiss) private var dismiss
     let onSaved: (UUID) -> Void
 
     @State private var viewModel: ManualImportViewModel?
+    @State private var isConfirmingDiscard = false
+
+    private var hasContent: Bool {
+        viewModel?.hasContent ?? false
+    }
 
     var body: some View {
         Group {
@@ -18,6 +24,29 @@ struct ManualImportView: View {
         }
         .navigationTitle("粘贴 JD")
         .navigationBarTitleDisplayMode(.inline)
+        // With content, the custom 取消 button replaces the system back button so leaving always
+        // asks first; the swipe-back gesture is disabled with it. An empty form leaves immediately.
+        .navigationBarBackButtonHidden(hasContent)
+        .toolbar {
+            if hasContent {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") {
+                        isConfirmingDiscard = true
+                    }
+                }
+            }
+        }
+        .interactiveDismissDisabled(hasContent)
+        .confirmationDialog(
+            "放弃未保存的修改？",
+            isPresented: $isConfirmingDiscard,
+            titleVisibility: .visible
+        ) {
+            Button("放弃修改", role: .destructive) { dismiss() }
+            Button("继续编辑", role: .cancel) {}
+        } message: {
+            Text("表单内容不会被保存。")
+        }
         .task {
             guard viewModel == nil else { return }
             viewModel = ManualImportViewModel(jobRepository: container.jobRepository)

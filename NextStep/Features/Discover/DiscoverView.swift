@@ -5,35 +5,33 @@ import UIKit
 /// and the eligibility-grouped job list with match explanations.
 struct DiscoverView: View {
     @Environment(AppContainer.self) private var container
-    @State private var viewModel: DiscoverViewModel?
+    @State private var viewModel: DiscoverViewModel
+    @State private var didLoad = false
+
+    init(container: AppContainer) {
+        _viewModel = State(initialValue: DiscoverViewModel(
+            jobRepository: container.jobRepository,
+            dateProvider: container.dateProvider,
+            matchProvider: container.matchProvider
+        ))
+    }
 
     var body: some View {
-        Group {
-            if let viewModel {
-                content(viewModel)
-            } else {
-                ProgressView("正在读取本地岗位…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+        content(viewModel)
+            .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle("Discover")
+            .navigationBarTitleDisplayMode(.inline)
+            .task {
+                guard !didLoad else { return }
+                didLoad = true
+                await viewModel.loadAndRefreshIfNeeded()
             }
-        }
-        .background(Color(uiColor: .systemGroupedBackground))
-        .navigationTitle("Discover")
-        .navigationBarTitleDisplayMode(.inline)
-        .task {
-            guard viewModel == nil else { return }
-            let model = DiscoverViewModel(
-                jobRepository: container.jobRepository,
-                dateProvider: container.dateProvider,
-                matchProvider: container.matchProvider
-            )
-            viewModel = model
-            await model.loadAndRefreshIfNeeded()
-        }
-        .onAppear {
-            // Returning from the import form or a detail refresh shows newly saved jobs.
-            // Matches are recomputed on every cache read, never persisted.
-            viewModel?.loadCachedJobs()
-        }
+            .onAppear {
+                // Returning from the import form or a detail refresh shows newly saved jobs.
+                // Matches are recomputed on every cache read, never persisted.
+                guard didLoad else { return }
+                viewModel.loadCachedJobs()
+            }
     }
 
     private func content(_ viewModel: DiscoverViewModel) -> some View {
@@ -446,6 +444,10 @@ private struct IneligibleGroup: View {
                     }
                     .buttonStyle(.plain)
                 }
+
+                // Spec §8: the same paste-a-JD entry also appears in the ineligible group.
+                PasteJobCard()
+                    .padding(.top, 2)
             }
         }
     }
