@@ -86,6 +86,44 @@ struct MatchServiceTests {
         #expect(results.isEmpty)
     }
 
+    @Test func eligibilityIgnoresTheProfileGateAndGroupsByJobTypeAndLocation() throws {
+        let repository = Fixtures.repository(
+            profile: Fixtures.profile(
+                skills: ["Swift"],
+                preferredLocations: ["Shanghai"],
+                timeZoneIdentifier: "Asia/Shanghai"
+            )
+        )
+        let service = try Fixtures.service(repository: repository)
+        let jobs = [
+            Fixtures.job(
+                identityKey: "manual:full-time",
+                title: "iOS Engineer",
+                jobType: "full_time",
+                location: "Remote"
+            ),
+            Fixtures.job(
+                identityKey: "manual:europe",
+                title: "iOS Intern",
+                jobType: "internship",
+                location: "Europe"
+            ),
+            Fixtures.job(
+                identityKey: "manual:remote",
+                title: "iOS Intern",
+                jobType: "internship",
+                location: "Remote"
+            ),
+        ]
+
+        let eligibility = try service.eligibility(jobs: jobs)
+
+        #expect(eligibility["manual:full-time"] == .ineligible(reason: .notInternship))
+        #expect(eligibility["manual:europe"] == .ineligible(reason: .locationMismatch))
+        #expect(eligibility["manual:remote"] == .eligible)
+        #expect(repository.fetchCount == 1)
+    }
+
     // MARK: - Fixtures
 
     @MainActor
@@ -129,20 +167,24 @@ struct MatchServiceTests {
 
         static func profile(
             skills: [String],
-            targetRoles: [String] = ["iOS 开发实习"]
+            targetRoles: [String] = ["iOS 开发实习"],
+            preferredLocations: [String] = [],
+            timeZoneIdentifier: String? = nil
         ) -> UserProfile {
             UserProfile(
                 skills: skills,
                 targetRoles: targetRoles,
-                preferredLocations: [],
-                timeZoneIdentifier: nil
+                preferredLocations: preferredLocations,
+                timeZoneIdentifier: timeZoneIdentifier
             )
         }
 
         static func job(
             identityKey: String = "manual:test",
             title: String,
-            description: String = "Build great products."
+            description: String = "Build great products.",
+            jobType: String? = "internship",
+            location: String? = "Remote"
         ) -> JobPosting {
             JobPosting(
                 identityKey: identityKey,
@@ -151,8 +193,8 @@ struct MatchServiceTests {
                 intakeMethod: .manual,
                 descriptionPlainText: description,
                 createdAt: Date(timeIntervalSince1970: 0),
-                location: "Remote",
-                jobType: "internship",
+                location: location,
+                jobType: jobType,
                 tags: []
             )
         }
@@ -175,7 +217,10 @@ struct MatchServiceTests {
 
         static let locationJSON = """
         [
-          {"id":"remote","name":"Remote","aliases":["remote","远程"]}
+          {"id":"remote","name":"Remote","aliases":["remote","远程"]},
+          {"id":"asia","name":"Asia","aliases":["asia","亚洲"]},
+          {"id":"china","name":"China","aliases":["china","中国","shanghai","上海"],"parent":"asia"},
+          {"id":"europe","name":"Europe","aliases":["europe","欧洲"]}
         ]
         """
     }

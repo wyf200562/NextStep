@@ -41,4 +41,18 @@ final class MatchService: MatchProviding {
         }
         return results
     }
+
+    func eligibility(jobs: [JobPosting]) throws -> [String: Eligibility] {
+        let profile = try profileRepository.fetchOrCreateProfile()
+
+        var results: [String: Eligibility] = [:]
+        for job in jobs {
+            results[job.identityKey] = engine.eligibility(
+                profile: profile,
+                job: job,
+                lexicon: lexicon
+            )
+        }
+        return results
+    }
 }

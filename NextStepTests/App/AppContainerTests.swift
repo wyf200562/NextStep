@@ -9,6 +9,7 @@ struct AppContainerTests {
     private final class StubMatchProvider: MatchProviding {
         func evaluate(job: JobPosting) throws -> MatchResult? { nil }
         func evaluate(jobs: [JobPosting]) throws -> [String: MatchResult] { [:] }
+        func eligibility(jobs: [JobPosting]) throws -> [String: Eligibility] { [:] }
     }
 
     @Test func wiresInjectedContainerDateProviderRouterAndRepositories() throws {

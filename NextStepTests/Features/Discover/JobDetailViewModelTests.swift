@@ -79,13 +79,15 @@ struct JobDetailViewModelTests {
 
     private func makeViewModel(
         jobRepository: FakeJobRepository,
-        applicationRepository: FakeApplicationRepository
+        applicationRepository: FakeApplicationRepository,
+        matchProvider: (any MatchProviding)? = nil
     ) -> JobDetailViewModel {
         JobDetailViewModel(
             jobRepository: jobRepository,
             applicationRepository: applicationRepository,
             dateProvider: FixedDateProvider(now: now, calendar: calendar),
-            jobID: jobID
+            jobID: jobID,
+            matchProvider: matchProvider
         )
     }
 
@@ -343,5 +345,102 @@ struct JobDetailViewModelTests {
             #expect(initial.toStatus == .wishlist)
             #expect(initial.changedAt == now)
         }
+    }
+
+    // MARK: - Match explanation
+
+    @Test func loadPublishesTheReadyMatchResult() {
+        let posting = makePosting()
+        let jobRepository = FakeJobRepository()
+        jobRepository.cachedJobsResult = .success([posting])
+        let provider = FakeMatchProvider()
+        let result = MatchFixtures.result(
+            score: 85,
+            band: .strong,
+            matchedSkills: ["swift", "swiftui"],
+            missingSkills: ["combine"]
+        )
+        provider.results = [posting.identityKey: result]
+        let viewModel = makeViewModel(
+            jobRepository: jobRepository,
+            applicationRepository: FakeApplicationRepository(),
+            matchProvider: provider
+        )
+
+        viewModel.load()
+
+        #expect(viewModel.matchAvailability == .ready)
+        #expect(viewModel.matchResult == result)
+        #expect(provider.evaluateJobCalls.map(\.id) == [posting.id])
+    }
+
+    @Test func anUnmetProfileGateShowsProfileIncomplete() {
+        let posting = makePosting()
+        let jobRepository = FakeJobRepository()
+        jobRepository.cachedJobsResult = .success([posting])
+        let provider = FakeMatchProvider()
+        provider.results = [:]
+        let viewModel = makeViewModel(
+            jobRepository: jobRepository,
+            applicationRepository: FakeApplicationRepository(),
+            matchProvider: provider
+        )
+
+        viewModel.load()
+
+        #expect(viewModel.matchAvailability == .profileIncomplete)
+        #expect(viewModel.matchResult == nil)
+    }
+
+    @Test func aMissingProviderShowsMatchUnavailable() {
+        let posting = makePosting()
+        let jobRepository = FakeJobRepository()
+        jobRepository.cachedJobsResult = .success([posting])
+        let viewModel = makeViewModel(
+            jobRepository: jobRepository,
+            applicationRepository: FakeApplicationRepository()
+        )
+
+        viewModel.load()
+
+        #expect(viewModel.matchAvailability == .unavailable)
+        #expect(viewModel.matchResult == nil)
+    }
+
+    @Test func aProviderFailureDegradesToUnavailableWithoutBlockingTheJob() {
+        let posting = makePosting()
+        let jobRepository = FakeJobRepository()
+        jobRepository.cachedJobsResult = .success([posting])
+        let provider = FakeMatchProvider()
+        provider.evaluateError = RepositoryError.unavailable
+        let viewModel = makeViewModel(
+            jobRepository: jobRepository,
+            applicationRepository: FakeApplicationRepository(),
+            matchProvider: provider
+        )
+
+        viewModel.load()
+
+        #expect(viewModel.job === posting)
+        #expect(viewModel.matchAvailability == .unavailable)
+        #expect(viewModel.matchResult == nil)
+    }
+
+    @Test func reloadRecomputesTheMatchResult() {
+        let posting = makePosting()
+        let jobRepository = FakeJobRepository()
+        jobRepository.cachedJobsResult = .success([posting])
+        let provider = FakeMatchProvider()
+        provider.results = [posting.identityKey: MatchFixtures.result(score: 70, band: .medium)]
+        let viewModel = makeViewModel(
+            jobRepository: jobRepository,
+            applicationRepository: FakeApplicationRepository(),
+            matchProvider: provider
+        )
+
+        viewModel.load()
+        viewModel.load()
+
+        #expect(provider.evaluateJobCalls.count == 2)
     }
 }

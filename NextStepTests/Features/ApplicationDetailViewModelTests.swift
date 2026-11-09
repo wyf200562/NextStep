@@ -34,7 +34,8 @@ struct ApplicationDetailViewModelTests {
     private func makeApplication(
         status: ApplicationStatus,
         deadline: Date? = nil,
-        rounds: [InterviewRound] = []
+        rounds: [InterviewRound] = [],
+        jobPosting: JobPosting? = nil
     ) -> Application {
         let application = Application(
             id: applicationID,
@@ -43,10 +44,20 @@ struct ApplicationDetailViewModelTests {
             status: status,
             createdAt: past,
             lastModifiedAt: past,
+            jobPosting: jobPosting,
             deadline: deadline
         )
         application.interviewRounds = rounds
         return application
+    }
+
+    private func makePosting() -> JobPosting {
+        MatchFixtures.job(
+            identityKey: "manual:application-detail",
+            title: "iOS 开发实习生",
+            companyName: "星尘科技",
+            intakeMethod: .manual
+        )
     }
 
     private func hoursLater(_ hours: Double) -> Date {
@@ -74,7 +85,8 @@ struct ApplicationDetailViewModelTests {
 
     private func makeViewModel(
         fake: FakeApplicationRepository,
-        application: Application? = nil
+        application: Application? = nil,
+        matchProvider: (any MatchProviding)? = nil
     ) -> ApplicationDetailViewModel {
         if let application {
             fake.storedApplications[application.id] = application
@@ -82,7 +94,8 @@ struct ApplicationDetailViewModelTests {
         return ApplicationDetailViewModel(
             repository: fake,
             dateProvider: FixedDateProvider(now: now, calendar: calendar),
-            applicationID: applicationID
+            applicationID: applicationID,
+            matchProvider: matchProvider
         )
     }
 
@@ -657,5 +670,111 @@ struct ApplicationDetailViewModelTests {
         viewModel.load()
 
         #expect(viewModel.rounds.map(\.id) == [fixedID(40), fixedID(10), fixedID(20), fixedID(30)])
+    }
+
+    // MARK: - Associated job match
+
+    @Test func loadComputesTheAssociatedJobMatchOnDemand() {
+        let posting = makePosting()
+        let application = makeApplication(status: .applied, jobPosting: posting)
+        let fake = FakeApplicationRepository()
+        let provider = FakeMatchProvider()
+        let result = MatchFixtures.result(
+            score: 82,
+            band: .strong,
+            matchedSkills: ["swift"],
+            missingSkills: ["combine"]
+        )
+        provider.results = [posting.identityKey: result]
+        let viewModel = makeViewModel(
+            fake: fake,
+            application: application,
+            matchProvider: provider
+        )
+
+        viewModel.load()
+
+        #expect(viewModel.matchAvailability == .ready)
+        #expect(viewModel.matchResult == result)
+        #expect(provider.evaluateJobCalls.map(\.id) == [posting.id])
+    }
+
+    @Test func profileIncompleteHidesTheSummaryButKeepsTheApplicationLoaded() {
+        let posting = makePosting()
+        let application = makeApplication(status: .applied, jobPosting: posting)
+        let fake = FakeApplicationRepository()
+        let provider = FakeMatchProvider()
+        provider.results = [:]
+        let viewModel = makeViewModel(
+            fake: fake,
+            application: application,
+            matchProvider: provider
+        )
+
+        viewModel.load()
+
+        #expect(viewModel.state.value === application)
+        #expect(viewModel.matchAvailability == .profileIncomplete)
+        #expect(viewModel.matchResult == nil)
+    }
+
+    @Test func aMissingProviderShowsMatchUnavailable() {
+        let posting = makePosting()
+        let application = makeApplication(status: .applied, jobPosting: posting)
+        let viewModel = makeViewModel(fake: FakeApplicationRepository(), application: application)
+
+        viewModel.load()
+
+        #expect(viewModel.matchAvailability == .unavailable)
+        #expect(viewModel.matchResult == nil)
+    }
+
+    @Test func anApplicationWithoutAnAssociatedPostingSkipsMatchEvaluation() {
+        let application = makeApplication(status: .applied)
+        let provider = FakeMatchProvider()
+        let viewModel = makeViewModel(
+            fake: FakeApplicationRepository(),
+            application: application,
+            matchProvider: provider
+        )
+
+        viewModel.load()
+
+        #expect(provider.evaluateJobCalls.isEmpty)
+        #expect(viewModel.matchResult == nil)
+    }
+
+    @Test func aProviderFailureDegradesToUnavailableWithoutBlockingTheApplication() {
+        let posting = makePosting()
+        let application = makeApplication(status: .applied, jobPosting: posting)
+        let provider = FakeMatchProvider()
+        provider.evaluateError = RepositoryError.unavailable
+        let viewModel = makeViewModel(
+            fake: FakeApplicationRepository(),
+            application: application,
+            matchProvider: provider
+        )
+
+        viewModel.load()
+
+        #expect(viewModel.state.value === application)
+        #expect(viewModel.matchAvailability == .unavailable)
+    }
+
+    @Test func refreshRecomputesTheAssociatedJobMatch() {
+        let posting = makePosting()
+        let application = makeApplication(status: .applied, jobPosting: posting)
+        let provider = FakeMatchProvider()
+        provider.results = [posting.identityKey: MatchFixtures.result(score: 75)]
+        let viewModel = makeViewModel(
+            fake: FakeApplicationRepository(),
+            application: application,
+            matchProvider: provider
+        )
+
+        viewModel.load()
+        viewModel.refresh()
+
+        #expect(provider.evaluateJobCalls.count == 2)
     }
 }

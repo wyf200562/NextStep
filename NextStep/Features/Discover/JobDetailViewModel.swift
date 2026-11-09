@@ -23,6 +23,7 @@ final class JobDetailViewModel {
     private let applicationRepository: any ApplicationRepository
     private let dateProvider: any DateProvider
     private let jobID: UUID
+    private let matchProvider: (any MatchProviding)?
 
     private(set) var state: LoadState<JobPosting> = .idle
     private(set) var importAction: ImportAction = .importNew
@@ -30,16 +31,22 @@ final class JobDetailViewModel {
     /// Chinese copy for a failed import; raw errors are never shown.
     private(set) var importErrorMessage: String?
 
+    /// Derived, never persisted; recomputed on every load.
+    private(set) var matchResult: MatchResult?
+    private(set) var matchAvailability: MatchAvailability = .unavailable
+
     init(
         jobRepository: any JobRepository,
         applicationRepository: any ApplicationRepository,
         dateProvider: any DateProvider,
-        jobID: UUID
+        jobID: UUID,
+        matchProvider: (any MatchProviding)? = nil
     ) {
         self.jobRepository = jobRepository
         self.applicationRepository = applicationRepository
         self.dateProvider = dateProvider
         self.jobID = jobID
+        self.matchProvider = matchProvider
     }
 
     var job: JobPosting? {
@@ -60,21 +67,24 @@ final class JobDetailViewModel {
         return "加载失败，请稍后重试"
     }
 
-    /// Loads the cached posting and classifies the import CTA.
+    /// Loads the cached posting, classifies the import CTA, and recomputes the match explanation.
     func load() {
         state = .loading
         do {
             guard let posting = try jobRepository.cachedJobs().first(where: { $0.id == jobID }) else {
                 state = .failed(JobDetailLoadError.notFound)
+                clearMatch()
                 return
             }
             state = .loaded(posting)
             importAction = classifyImportAction(for: posting)
+            evaluateMatch(for: posting)
         } catch {
             AppLogger.ui.error(
                 "Failed to load job detail: \(error.localizedDescription, privacy: .public)"
             )
             state = .failed(error)
+            clearMatch()
         }
     }
 
@@ -139,6 +149,33 @@ final class JobDetailViewModel {
             )
             return .importNew
         }
+    }
+
+    /// Recomputes the match explanation through the injected seam; nothing is persisted.
+    private func evaluateMatch(for posting: JobPosting) {
+        guard let matchProvider else {
+            clearMatch()
+            return
+        }
+        do {
+            if let result = try matchProvider.evaluate(job: posting) {
+                matchResult = result
+                matchAvailability = .ready
+            } else {
+                matchResult = nil
+                matchAvailability = .profileIncomplete
+            }
+        } catch {
+            clearMatch()
+            AppLogger.matching.error(
+                "Failed to evaluate a job for the detail screen: \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+
+    private func clearMatch() {
+        matchResult = nil
+        matchAvailability = .unavailable
     }
 
     /// Active statuses keep the posting out of the re-import path: duplicates are never created.

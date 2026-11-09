@@ -151,6 +151,36 @@ nonisolated struct MatchingEngine: Sendable {
         )
     }
 
+    /// Gate-independent eligibility for grouping when the profile is incomplete.
+    ///
+    /// Only the job-type and location rules are evaluated; skill resolution and the profile gate are
+    /// skipped, so a profile with too few skills still yields a meaningful grouping.
+    @MainActor
+    func eligibility(
+        profile: UserProfile,
+        job: JobPosting,
+        lexicon: MatchingLexicon
+    ) -> Eligibility {
+        let locationProfile = ResolvedProfile(
+            skillIDs: [],
+            targetRoles: [],
+            preferredLocations: profile.preferredLocations
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty },
+            timeZoneIdentifier: profile.timeZoneIdentifier
+        )
+        let location = evaluateLocation(
+            profile: locationProfile,
+            jobLocation: job.location,
+            lexicon: lexicon.locationLexicon
+        )
+        let jobType = evaluateJobType(
+            jobType: job.jobType,
+            title: MatchingTextNormalizer.normalize(job.title)
+        )
+        return eligibility(jobType: jobType, location: location)
+    }
+
     // MARK: - Skill scanning
 
     private struct EvidenceKey: Hashable {

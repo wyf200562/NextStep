@@ -30,7 +30,8 @@ struct JobDetailView: View {
                 jobRepository: container.jobRepository,
                 applicationRepository: container.applicationRepository,
                 dateProvider: container.dateProvider,
-                jobID: jobID
+                jobID: jobID,
+                matchProvider: container.matchProvider
             )
             model.load()
             viewModel = model
@@ -81,11 +82,15 @@ struct JobDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 JobHeaderCard(job: job)
 
-                // MARK: Ticket 22 insertion point
-                // The matching region (profile gate / score hero / skill chips / ineligible banner)
-                // renders here, between the header and the JD.
+                JobMatchSection(
+                    availability: viewModel.matchAvailability,
+                    match: viewModel.matchResult,
+                    skillDictionary: container.matchingLexicon?.skillDictionary
+                ) {
+                    container.router.openProfile()
+                }
 
-                JobDescriptionCard(job: job)
+                JobDescriptionCard(job: job, highlightSegments: jdHighlightSegments(job, viewModel: viewModel))
                 JobSourceCard(job: job)
             }
             .padding(.horizontal, 20)
@@ -97,6 +102,22 @@ struct JobDetailView: View {
                 handleImportTapped(viewModel)
             }
         }
+    }
+
+    /// JD highlighting is display-only and only exists when a match result was computed.
+    private func jdHighlightSegments(
+        _ job: JobPosting,
+        viewModel: JobDetailViewModel
+    ) -> [JDHighlightSegment]? {
+        guard viewModel.matchAvailability == .ready, let match = viewModel.matchResult else {
+            return nil
+        }
+        let dictionary = container.matchingLexicon?.skillDictionary
+        return JDHighlighter.segments(
+            text: job.descriptionPlainText,
+            matchedAliases: JDHighlighter.aliases(for: match.matchedSkills, dictionary: dictionary),
+            missingAliases: JDHighlighter.aliases(for: match.missingSkills, dictionary: dictionary)
+        )
     }
 
     private func failureState(_ viewModel: JobDetailViewModel) -> some View {
@@ -144,7 +165,7 @@ struct JobDetailView: View {
 
 // MARK: - Cards
 
-private struct DetailCard<Content: View>: View {
+struct DetailCard<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -248,6 +269,8 @@ private struct SourceBadge: View {
 
 private struct JobDescriptionCard: View {
     let job: JobPosting
+    /// `nil` when no match result exists (profile gate or matching unavailable); plain text then.
+    let highlightSegments: [JDHighlightSegment]?
 
     var body: some View {
         DetailCard {
@@ -258,9 +281,9 @@ private struct JobDescriptionCard: View {
                 if job.descriptionPlainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text("暂无 JD 正文")
                         .foregroundStyle(.secondary)
+                } else if let highlightSegments {
+                    JDHighlightedText(segments: highlightSegments)
                 } else {
-                    // Ticket 22 adds matched-green / missing-red highlighting here; this ticket
-                    // intentionally renders the normalized plain text only.
                     Text(job.descriptionPlainText)
                         .font(.body)
                         .textSelection(.enabled)
