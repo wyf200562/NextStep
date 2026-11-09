@@ -51,6 +51,8 @@ xcodebuild -project NextStep.xcodeproj -scheme NextStep \
 
 合并 integration/nextstep-v1 `ae4764c`（ticket 17）时无冲突，merge commit `c4f9b65`；合并后重跑同一命令：exit 0，`** TEST SUCCEEDED **`，283 个测试函数 / 31 个 suite，设备级 `passedTests 499`、`failedTests 0`、`skippedTests 0`。
 
+合并回 integration/nextstep-v1：merge commit `0b68aa2`，无冲突；在 iPhone 18 Pro（iOS 27.0）重跑全量：exit 0，`** TEST SUCCEEDED **`，283 个测试函数 / 31 个 suite，设备级 `passedTests 499`、`failedTests 0`、`skippedTests 0`。
+
 ### 决策与说明
 
 - **协议新增 `eligibility(jobs:)`**：spec 要求画像不足时仍按 eligibility（job type 与地点规则）分组且 ineligible 组仍显示原因，仅靠 `evaluate` 的 nil（门槛未满）无法得到原因。因此把门槛独立的 eligibility 放到既有 `MatchProviding` 缝上，`MatchingEngine` 复用私有岗位类型/地点规则；未新增协议或领域实体。ticket 17/23 若新增 `MatchProviding` 测试替身需实现该方法。
