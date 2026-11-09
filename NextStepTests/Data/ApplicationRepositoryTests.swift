@@ -454,6 +454,177 @@ struct ApplicationRepositoryTests {
         }
     }
 
+    // MARK: - Interview rounds
+
+    @Test("addInterviewRound links the round to the application and stamps lastModifiedAt without changing status")
+    func addInterviewRoundLinksAndStampsWithoutChangingStatus() throws {
+        let calendar = makeCalendar()
+        let createdAt = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 10))
+        )
+        let addedAt = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 10, hour: 16))
+        )
+        let scheduledAt = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 12, hour: 14, minute: 30))
+        )
+        let clock = MutableDateProvider(now: createdAt, calendar: calendar)
+        let made = try makeRepository(dateProvider: clock)
+
+        try withExtendedLifetime(made.container) {
+            let repository = made.repository
+            let application = try createApplication(
+                in: repository,
+                status: .applied,
+                statusDate: createdAt
+            )
+            clock.now = addedAt
+
+            let round = try repository.addInterviewRound(
+                to: application,
+                scheduledAt: scheduledAt,
+                format: .video,
+                label: "一面",
+                contact: "王女士",
+                notes: "线上会议",
+                result: .pending
+            )
+
+            #expect(round.application === application)
+            #expect(application.interviewRounds.contains { $0.id == round.id })
+            #expect(round.scheduledAt == scheduledAt)
+            #expect(round.format == .video)
+            #expect(round.label == "一面")
+            #expect(round.contact == "王女士")
+            #expect(round.notes == "线上会议")
+            #expect(round.result == .pending)
+            #expect(application.lastModifiedAt == addedAt)
+            #expect(application.status == .applied)
+            #expect(try repository.statusChanges(for: application).count == 1)
+        }
+    }
+
+    @Test("updateInterviewRound replaces every field and stamps the owning application without changing status")
+    func updateInterviewRoundStampsOwnerWithoutChangingStatus() throws {
+        let calendar = makeCalendar()
+        let createdAt = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 10))
+        )
+        let originalDate = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 12, hour: 14))
+        )
+        let rescheduledDate = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 13, hour: 16, minute: 45))
+        )
+        let editedAt = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 10, hour: 9))
+        )
+        let clock = MutableDateProvider(now: createdAt, calendar: calendar)
+        let made = try makeRepository(dateProvider: clock)
+
+        try withExtendedLifetime(made.container) {
+            let repository = made.repository
+            let application = try createApplication(
+                in: repository,
+                status: .oa,
+                statusDate: createdAt
+            )
+            let round = try repository.addInterviewRound(
+                to: application,
+                scheduledAt: originalDate,
+                format: .video,
+                label: "一面",
+                contact: nil,
+                notes: nil,
+                result: .pending
+            )
+            let historyBefore = try repository.statusChanges(for: application).map(\.id)
+            let modifiedBeforeEdit = application.lastModifiedAt
+            clock.now = editedAt
+
+            try repository.updateInterviewRound(
+                round,
+                scheduledAt: rescheduledDate,
+                format: .onsite,
+                label: "二面",
+                contact: "李先生",
+                notes: "带简历",
+                result: .passed
+            )
+
+            #expect(round.scheduledAt == rescheduledDate)
+            #expect(round.format == .onsite)
+            #expect(round.label == "二面")
+            #expect(round.contact == "李先生")
+            #expect(round.notes == "带简历")
+            #expect(round.result == .passed)
+            #expect(round.application === application)
+            #expect(application.lastModifiedAt == editedAt)
+            #expect(application.lastModifiedAt != modifiedBeforeEdit)
+            #expect(application.status == .oa)
+            #expect(try repository.statusChanges(for: application).map(\.id) == historyBefore)
+        }
+    }
+
+    @Test("deleteInterviewRound removes only that round and stamps the owning application without changing status")
+    func deleteInterviewRoundRemovesRoundAndStampsOwner() throws {
+        let calendar = makeCalendar()
+        let createdAt = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 10))
+        )
+        let firstDate = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 12, hour: 14))
+        )
+        let secondDate = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 15, hour: 11))
+        )
+        let deletedAt = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: 10, hour: 9))
+        )
+        let clock = MutableDateProvider(now: createdAt, calendar: calendar)
+        let made = try makeRepository(dateProvider: clock)
+
+        try withExtendedLifetime(made.container) {
+            let repository = made.repository
+            let context = made.container.mainContext
+            let application = try createApplication(
+                in: repository,
+                status: .interview,
+                statusDate: createdAt
+            )
+            let first = try repository.addInterviewRound(
+                to: application,
+                scheduledAt: firstDate,
+                format: .phone,
+                label: "一面",
+                contact: nil,
+                notes: nil,
+                result: .pending
+            )
+            let second = try repository.addInterviewRound(
+                to: application,
+                scheduledAt: secondDate,
+                format: .onsite,
+                label: "二面",
+                contact: nil,
+                notes: nil,
+                result: .pending
+            )
+            let historyBefore = try repository.statusChanges(for: application).map(\.id)
+            clock.now = deletedAt
+
+            try repository.deleteInterviewRound(first)
+
+            #expect(application.interviewRounds.map(\.id) == [second.id])
+            #expect(application.lastModifiedAt == deletedAt)
+            #expect(application.status == .interview)
+            #expect(try repository.statusChanges(for: application).map(\.id) == historyBefore)
+            #expect(
+                try context.fetch(FetchDescriptor<InterviewRound>()).map(\.id) == [second.id]
+            )
+        }
+    }
+
     private func fixedID(_ value: Int) -> UUID {
         UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", value))!
     }

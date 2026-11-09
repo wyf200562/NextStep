@@ -5,9 +5,9 @@ import SwiftData
 /// SwiftData implementation of the application writing seam.
 ///
 /// Creation inserts the `Application` and its initial `StatusChange` in one save. Snapshot edits,
-/// deletion (cascading rounds and status history but keeping the `JobPosting`), and validated
-/// status changes each save atomically. Interview-round management is owned by ticket 16; until it
-/// lands, those calls fail with `RepositoryError.unavailable` instead of trapping.
+/// deletion (cascading rounds and status history but keeping the `JobPosting`), validated status
+/// changes, and interview-round writes each save atomically. Round writes only stamp the owning
+/// application's `lastModifiedAt`; they never change `Application.status`.
 @MainActor
 final class SwiftDataApplicationRepository: ApplicationRepository {
     private let context: ModelContext
@@ -198,7 +198,7 @@ final class SwiftDataApplicationRepository: ApplicationRepository {
         )
     }
 
-    // MARK: - Owned by ticket 16
+    // MARK: - Interview rounds
 
     @discardableResult
     func addInterviewRound(
@@ -210,7 +210,29 @@ final class SwiftDataApplicationRepository: ApplicationRepository {
         notes: String?,
         result: InterviewResult
     ) throws -> InterviewRound {
-        throw deferred("addInterviewRound", tickets: "16")
+        let round = InterviewRound(
+            scheduledAt: scheduledAt,
+            format: format,
+            result: result,
+            label: label,
+            contact: contact,
+            notes: notes
+        )
+        context.insert(round)
+        round.application = application
+        application.lastModifiedAt = dateProvider.now
+
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            AppLogger.data.error(
+                "Failed to add an interview round: \(error.localizedDescription, privacy: .public)"
+            )
+            throw RepositoryError.saveFailed
+        }
+        AppLogger.data.info("Added an interview round to an application")
+        return round
     }
 
     func updateInterviewRound(
@@ -222,17 +244,42 @@ final class SwiftDataApplicationRepository: ApplicationRepository {
         notes: String?,
         result: InterviewResult
     ) throws {
-        throw deferred("updateInterviewRound", tickets: "16")
+        round.scheduledAt = scheduledAt
+        round.format = format
+        round.label = label
+        round.contact = contact
+        round.notes = notes
+        round.result = result
+        // Rounds never change the application status; an edit only counts as a modification.
+        round.application?.lastModifiedAt = dateProvider.now
+
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            AppLogger.data.error(
+                "Failed to update an interview round: \(error.localizedDescription, privacy: .public)"
+            )
+            throw RepositoryError.saveFailed
+        }
+        AppLogger.data.info("Updated an interview round")
     }
 
     func deleteInterviewRound(_ round: InterviewRound) throws {
-        throw deferred("deleteInterviewRound", tickets: "16")
-    }
+        // Capture the owner before deleting: SwiftData nullifies the relationship on delete.
+        let application = round.application
+        application?.lastModifiedAt = dateProvider.now
+        context.delete(round)
 
-    private func deferred(_ operation: String, tickets: String) -> RepositoryError {
-        AppLogger.data.error(
-            "ApplicationRepository.\(operation, privacy: .public) is implemented by ticket(s) \(tickets, privacy: .public)"
-        )
-        return .unavailable
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            AppLogger.data.error(
+                "Failed to delete an interview round: \(error.localizedDescription, privacy: .public)"
+            )
+            throw RepositoryError.saveFailed
+        }
+        AppLogger.data.info("Deleted an interview round")
     }
 }
