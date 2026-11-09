@@ -36,7 +36,11 @@ final class AppContainer {
         self.modelContext = modelContainer.mainContext
         self.dateProvider = dateProvider
         self.router = router
-        self.applicationRepository = applicationRepository ?? UnavailableApplicationRepository()
+        self.applicationRepository = applicationRepository
+            ?? SwiftDataApplicationRepository(
+                context: modelContainer.mainContext,
+                dateProvider: dateProvider
+            )
         self.userProfileRepository = userProfileRepository
             ?? SwiftDataUserProfileRepository(context: modelContainer.mainContext)
         self.jobRepository = jobRepository ?? UnavailableJobRepository()

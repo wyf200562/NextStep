@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// Four root tabs sharing one `AppRouter`. No ViewModel lives at the root.
@@ -35,6 +36,8 @@ struct RootTabView: View {
 }
 
 #Preview {
+    let container = try! AppContainer.makeInMemory()
     RootTabView()
-        .environment(try! AppContainer.makeInMemory())
+        .environment(container)
+        .modelContainer(container.modelContainer)
 }

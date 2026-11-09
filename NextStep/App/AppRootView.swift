@@ -1,4 +1,5 @@
 import os
+import SwiftData
 import SwiftUI
 
 /// Owns composition-root creation. Container failure shows a blocking Chinese error page with retry.
@@ -11,6 +12,7 @@ struct AppRootView: View {
             if let container {
                 RootTabView()
                     .environment(container)
+                    .modelContainer(container.modelContainer)
             } else if didFailToOpenStore {
                 StartupErrorView(onRetry: loadContainer)
             } else {
