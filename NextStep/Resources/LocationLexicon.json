@@ -1,0 +1,17 @@
+[
+  {"id": "remote", "name": "Remote / Worldwide", "aliases": ["remote", "worldwide", "anywhere", "global", "work from anywhere", "fully remote", "distributed team", "远程", "全球", "不限地点", "地点不限"]},
+  {"id": "asia", "name": "Asia / 亚洲", "aliases": ["asia", "asian", "asia pacific", "apac", "亚洲", "亚太", "亚太地区"]},
+  {"id": "china", "name": "China / 中国", "aliases": ["china", "mainland china", "prc", "中国", "中国大陆", "国内", "beijing", "北京", "shanghai", "上海", "shenzhen", "深圳", "hangzhou", "杭州", "guangzhou", "广州", "chengdu", "成都", "nanjing", "南京", "wuhan", "武汉"], "parent": "asia"},
+  {"id": "europe", "name": "Europe / 欧洲", "aliases": ["europe", "european", "eu", "欧洲", "欧盟", "欧洲地区"]},
+  {"id": "uk", "name": "United Kingdom / 英国", "aliases": ["uk", "u.k.", "united kingdom", "great britain", "britain", "england", "scotland", "英国", "英格兰", "伦敦", "london"], "parent": "europe"},
+  {"id": "north-america", "name": "North America / 北美", "aliases": ["north america", "north american", "america", "北美"]},
+  {"id": "us", "name": "United States / 美国", "aliases": ["us", "u.s.", "usa", "u.s.a.", "united states", "united states of america", "美国", "纽约", "new york", "san francisco", "旧金山", "seattle", "西雅图", "california", "加利福尼亚", "湾区", "bay area"], "parent": "north-america"},
+  {"id": "canada", "name": "Canada / 加拿大", "aliases": ["canada", "加拿大", "toronto", "多伦多", "vancouver", "温哥华"], "parent": "north-america"},
+  {"id": "india", "name": "India / 印度", "aliases": ["india", "印度", "bangalore", "bengaluru", "班加罗尔"], "parent": "asia"},
+  {"id": "japan", "name": "Japan / 日本", "aliases": ["japan", "日本", "tokyo", "东京", "osaka", "大阪"], "parent": "asia"},
+  {"id": "singapore", "name": "Singapore / 新加坡", "aliases": ["singapore", "新加坡"], "parent": "asia"},
+  {"id": "germany", "name": "Germany / 德国", "aliases": ["germany", "deutschland", "德国", "berlin", "柏林", "munich", "慕尼黑"], "parent": "europe"},
+  {"id": "france", "name": "France / 法国", "aliases": ["france", "法国", "paris", "巴黎"], "parent": "europe"},
+  {"id": "netherlands", "name": "Netherlands / 荷兰", "aliases": ["netherlands", "holland", "荷兰", "amsterdam", "阿姆斯特丹"], "parent": "europe"},
+  {"id": "australia", "name": "Australia / 澳大利亚", "aliases": ["australia", "澳大利亚", "澳洲", "sydney", "悉尼", "melbourne", "墨尔本"]}
+]

@@ -60,14 +60,14 @@ nonisolated enum Eligibility: Sendable, Equatable {
 }
 
 /// Which job field produced a skill match.
-nonisolated enum SkillMatchField: String, CaseIterable, Sendable {
+nonisolated enum SkillMatchField: String, CaseIterable, Sendable, Hashable {
     case title
     case tags
     case description
 }
 
 /// One piece of skill-match evidence.
-nonisolated struct SkillEvidence: Sendable, Equatable {
+nonisolated struct SkillEvidence: Sendable, Equatable, Hashable {
     let skillID: SkillID
     let field: SkillMatchField
     let matchedAlias: String

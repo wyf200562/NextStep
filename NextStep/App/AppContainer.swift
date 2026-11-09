@@ -30,18 +30,36 @@ final class AppContainer {
         userProfileRepository: (any UserProfileRepository)? = nil,
         jobRepository: (any JobRepository)? = nil,
         jobSourceFactory: JobSourceFactory? = nil,
-        matchProvider: (any MatchProviding)? = nil
+        matchProvider: (any MatchProviding)? = nil,
+        matchingLexiconLoader: MatchingLexiconLoader = MatchingLexiconLoader()
     ) {
         self.modelContainer = modelContainer
         self.modelContext = modelContainer.mainContext
         self.dateProvider = dateProvider
         self.router = router
         self.applicationRepository = applicationRepository ?? UnavailableApplicationRepository()
-        self.userProfileRepository = userProfileRepository
+        let resolvedProfileRepository = userProfileRepository
             ?? SwiftDataUserProfileRepository(context: modelContainer.mainContext)
+        self.userProfileRepository = resolvedProfileRepository
         self.jobRepository = jobRepository ?? UnavailableJobRepository()
         self.jobSourceFactory = jobSourceFactory
-        self.matchProvider = matchProvider
+
+        if let matchProvider {
+            self.matchProvider = matchProvider
+        } else {
+            do {
+                let lexicon = try matchingLexiconLoader.load()
+                self.matchProvider = MatchService(
+                    profileRepository: resolvedProfileRepository,
+                    lexicon: lexicon
+                )
+            } catch {
+                AppLogger.matching.error(
+                    "Matching lexicon unavailable; matching disabled: \(String(describing: error), privacy: .public)"
+                )
+                self.matchProvider = nil
+            }
+        }
     }
 
     /// Creates the production container backed by the on-disk store.
