@@ -31,9 +31,35 @@ struct AppContainerTests {
         #expect(container.jobSourceFactory.makeManual(
             ManualJobInput(title: "iOS Intern", companyName: "Acme", descriptionPlainText: "JD")
         ).intakeMethod == .manual)
+        let remoteSource = container.jobSourceFactory.makeRemote(JobQuery())
+        #expect(remoteSource is RemotiveJobSource)
+        #expect(remoteSource.intakeMethod == .remotive)
         #expect(container.jobRepository is SwiftDataJobRepository)
         let provider = try #require(container.matchProvider)
         #expect(provider is MatchService)
+    }
+
+    @Test func defaultJobRepositoryReadsTheInjectedRefreshLedger() throws {
+        let modelContainer = try ModelContainerFactory.makeContainer(isStoredInMemoryOnly: true)
+        let suiteName = "NextStepTests.AppContainer.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let ledger = RefreshLedger(
+            userDefaults: defaults,
+            dateProvider: FixedDateProvider(now: now)
+        )
+        ledger.recordSuccess(for: .remotive)
+
+        let container = AppContainer(
+            modelContainer: modelContainer,
+            dateProvider: FixedDateProvider(now: now),
+            refreshLedger: ledger
+        )
+
+        #expect(container.refreshLedger === ledger)
+        #expect(container.jobRepository.lastRefreshAt(for: .remotive) == now)
     }
 
     @Test func defaultContainerWiresMatchServiceFromBundledLexicons() throws {

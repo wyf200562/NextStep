@@ -1,9 +1,8 @@
 import SwiftUI
 import UIKit
 
-/// Discover tab: persistent sample-mode header, paste-a-JD entry, internship filter, and the
-/// eligibility-grouped job list with match explanations. Refresh, TTL, and quota handling belong to
-/// ticket 23.
+/// Discover tab: persistent sample-mode header, paste-a-JD entry, refresh loop, internship filter,
+/// and the eligibility-grouped job list with match explanations.
 struct DiscoverView: View {
     @Environment(AppContainer.self) private var container
     @State private var viewModel: DiscoverViewModel?
@@ -27,8 +26,8 @@ struct DiscoverView: View {
                 dateProvider: container.dateProvider,
                 matchProvider: container.matchProvider
             )
-            model.loadCachedJobs()
             viewModel = model
+            await model.loadAndRefreshIfNeeded()
         }
         .onAppear {
             // Returning from the import form or a detail refresh shows newly saved jobs.
@@ -41,25 +40,47 @@ struct DiscoverView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 DiscoverSampleHeader(viewModel: viewModel)
-                PasteJobCard()
 
-                if case .failed = viewModel.cacheState {
-                    CacheErrorCard(
-                        message: viewModel.cacheErrorMessage ?? "加载失败，请稍后重试"
-                    ) {
-                        viewModel.loadCachedJobs()
+                if let blocking = viewModel.blockingRefreshPrompt {
+                    BlockingRefreshState(prompt: blocking) {
+                        Task { await viewModel.refresh() }
                     }
                 } else {
-                    OnlyInternshipsToggle(viewModel: viewModel)
-                    GroupedJobsSection(
-                        viewModel: viewModel,
-                        skillDictionary: container.matchingLexicon?.skillDictionary
-                    )
+                    PasteJobCard()
+
+                    if let notice = viewModel.refreshNotice {
+                        RefreshNoticeCard(prompt: notice) {
+                            Task { await viewModel.refresh() }
+                        }
+                    }
+
+                    if case .failed = viewModel.cacheState {
+                        CacheErrorCard(
+                            message: viewModel.cacheErrorMessage ?? "加载失败，请稍后重试"
+                        ) {
+                            viewModel.loadCachedJobs()
+                        }
+                    } else if viewModel.isInitialLoading {
+                        ProgressView("正在获取岗位…")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 40)
+                    } else {
+                        OnlyInternshipsToggle(viewModel: viewModel)
+                        GroupedJobsSection(
+                            viewModel: viewModel,
+                            skillDictionary: container.matchingLexicon?.skillDictionary
+                        ) {
+                            Task { await viewModel.refresh() }
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
             .padding(.bottom, 28)
+        }
+        .refreshable {
+            await viewModel.refresh()
         }
     }
 }
@@ -101,7 +122,12 @@ private struct DiscoverSampleHeader: View {
                 Text("公共 API 每天只放出一小份样本，不是全部岗位；条数少不是加载失败。")
                     .font(.footnote)
                     .opacity(0.72)
-                Text("数据来源 Remotive · 岗位回链原站")
+                if let summary = viewModel.lastRefreshSummary {
+                    Text(summary)
+                        .font(.caption2.weight(.semibold))
+                        .opacity(0.72)
+                }
+                Text("数据来源 Remotive · \(viewModel.lastRefreshText) · 岗位回链原站")
                     .font(.caption2)
                     .opacity(0.55)
             }
@@ -194,11 +220,12 @@ private struct OnlyInternshipsToggle: View {
 private struct GroupedJobsSection: View {
     let viewModel: DiscoverViewModel
     let skillDictionary: SkillDictionary?
+    let retry: () -> Void
 
     @ViewBuilder
     var body: some View {
         if viewModel.jobs.isEmpty {
-            DiscoverEmptyState()
+            DiscoverEmptyState(retry: retry)
         } else if viewModel.visibleJobs.isEmpty {
             FilteredEmptyState(
                 sampleCount: viewModel.remotiveCount,
@@ -562,6 +589,8 @@ private struct DiscoverSourceBadge: View {
 }
 
 private struct DiscoverEmptyState: View {
+    let retry: () -> Void
+
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: "safari")
@@ -575,6 +604,16 @@ private struct DiscoverEmptyState: View {
                 .multilineTextAlignment(.center)
             PasteJDButton()
                 .padding(.top, 6)
+            Button("重试", action: retry)
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: 280)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color(uiColor: .secondarySystemFill))
+                )
+                .foregroundStyle(.primary)
+                .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 28)
@@ -657,6 +696,98 @@ private struct CacheErrorCard: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+    }
+}
+
+// MARK: - Refresh prompts
+
+private struct RefreshNoticeCard: View {
+    let prompt: DiscoverViewModel.RefreshPrompt
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(prompt.title)
+                    .font(.subheadline.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                if let message = prompt.message, !message.isEmpty {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 8)
+            Button("重试", action: retry)
+                .font(.subheadline.weight(.semibold))
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.orange.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.28), lineWidth: 0.5)
+        )
+    }
+}
+
+private struct BlockingRefreshState: View {
+    let prompt: DiscoverViewModel.RefreshPrompt
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 38))
+                .foregroundStyle(.orange)
+            Text(prompt.title)
+                .font(.title3.weight(.semibold))
+            if let message = prompt.message, !message.isEmpty {
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            Button(action: retry) {
+                Text("重试")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: 280)
+                    .padding(.vertical, 11)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.accentColor)
+                    )
+                    .foregroundStyle(Color.white)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+
+            NavigationLink(value: DiscoverRoute.manualImport) {
+                Text("粘贴 JD")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: 280)
+                    .padding(.vertical, 11)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color(uiColor: .secondarySystemFill))
+                    )
+                    .foregroundStyle(.primary)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 28)
+        .padding(.horizontal, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
         )
     }

@@ -5,21 +5,25 @@ import SwiftData
 /// SwiftData implementation of the job persistence seam.
 ///
 /// Sources only produce drafts; this repository is the single write entry and upserts by
-/// `identityKey`. Refresh throttling, the Remotive source, and `lastRefreshAt` arrive with ticket 23.
+/// `identityKey`. Refresh attempts are throttled per source by the injected `RefreshLedger`; old
+/// postings are never deleted because an `Application` may reference them.
 @MainActor
 final class SwiftDataJobRepository: JobRepository {
     private let context: ModelContext
     private let dateProvider: any DateProvider
     private let jobSourceFactory: JobSourceFactory
+    private let refreshLedger: RefreshLedger
 
     init(
         context: ModelContext,
         dateProvider: any DateProvider,
-        jobSourceFactory: JobSourceFactory
+        jobSourceFactory: JobSourceFactory,
+        refreshLedger: RefreshLedger
     ) {
         self.context = context
         self.dateProvider = dateProvider
         self.jobSourceFactory = jobSourceFactory
+        self.refreshLedger = refreshLedger
     }
 
     func cachedJobs() throws -> [JobPosting] {
@@ -36,10 +40,48 @@ final class SwiftDataJobRepository: JobRepository {
     }
 
     func refreshDiscover(query: JobQuery) async -> RefreshOutcome {
-        // Ticket 23 replaces this with the Remotive refresh, throttling, TTL, and quota handling.
-        AppLogger.data.info("refreshDiscover is not implemented until ticket 23")
-        let cachedCount = (try? cachedJobs().count) ?? 0
-        return .failed(error: RepositoryError.unavailable, cachedCount: cachedCount)
+        if let reason = refreshLedger.nextAttemptBlock(for: .remotive) {
+            AppLogger.data.info("Remotive refresh skipped: \(reason.rawValue, privacy: .public)")
+            return .skipped(reason: reason)
+        }
+        // Record before the request: a cancelled or failed attempt still consumes the quota.
+        refreshLedger.recordAttempt(for: .remotive)
+
+        let source = jobSourceFactory.makeRemote(query)
+        let drafts: [JobPostingDraft]
+        do {
+            drafts = try await source.loadJobs()
+        } catch {
+            AppLogger.data.error(
+                "Remotive refresh failed: \(String(describing: error), privacy: .public)"
+            )
+            let reportedError: any Error = error is CancellationError ? CancellationError() : error
+            return .failed(error: reportedError, cachedCount: cachedCount())
+        }
+
+        var added = 0
+        var updated = 0
+        do {
+            for draft in drafts {
+                let result = try upsert(draft)
+                if result.isNew {
+                    added += 1
+                } else {
+                    updated += 1
+                }
+            }
+        } catch {
+            AppLogger.data.error(
+                "Failed to persist the Remotive sample: \(String(describing: error), privacy: .public)"
+            )
+            return .failed(error: error, cachedCount: cachedCount())
+        }
+
+        refreshLedger.recordSuccess(for: .remotive)
+        AppLogger.data.info(
+            "Remotive refresh complete: \(added) added, \(updated) updated"
+        )
+        return .refreshed(added: added, updated: updated)
     }
 
     func importManual(_ input: ManualJobInput) async throws -> JobPosting {
@@ -49,15 +91,20 @@ final class SwiftDataJobRepository: JobRepository {
             AppLogger.data.error("Manual job source returned no drafts")
             throw JobSourceError.invalidInput
         }
-        return try upsert(draft)
+        // Manual imports never touch the Remotive `RefreshLedger`.
+        return try upsert(draft).posting
     }
 
     func lastRefreshAt(for source: JobIntakeMethod) -> Date? {
-        // Ticket 23 adds the RefreshLedger and reports the last successful refresh per source.
-        nil
+        refreshLedger.lastSuccess(for: source)
     }
 
-    private func upsert(_ draft: JobPostingDraft) throws -> JobPosting {
+    private func cachedCount() -> Int {
+        (try? cachedJobs().count) ?? 0
+    }
+
+    @discardableResult
+    private func upsert(_ draft: JobPostingDraft) throws -> (posting: JobPosting, isNew: Bool) {
         let key = draft.identityKey
         var descriptor = FetchDescriptor<JobPosting>(
             predicate: #Predicate<JobPosting> { posting in posting.identityKey == key }
@@ -114,6 +161,6 @@ final class SwiftDataJobRepository: JobRepository {
             AppLogger.data.error("Failed to save JobPosting: \(error.localizedDescription, privacy: .public)")
             throw RepositoryError.saveFailed
         }
-        return posting
+        return (posting, existing == nil)
     }
 }

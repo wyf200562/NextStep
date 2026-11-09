@@ -34,6 +34,8 @@ final class JobDetailViewModel {
     /// Derived, never persisted; recomputed on every load.
     private(set) var matchResult: MatchResult?
     private(set) var matchAvailability: MatchAvailability = .unavailable
+    /// How many Remotive postings are cached locally, for the "本机 N 条样本之一" source note.
+    private(set) var remotiveSampleCount = 0
 
     init(
         jobRepository: any JobRepository,
@@ -71,11 +73,14 @@ final class JobDetailViewModel {
     func load() {
         state = .loading
         do {
-            guard let posting = try jobRepository.cachedJobs().first(where: { $0.id == jobID }) else {
+            let cachedJobs = try jobRepository.cachedJobs()
+            guard let posting = cachedJobs.first(where: { $0.id == jobID }) else {
                 state = .failed(JobDetailLoadError.notFound)
+                remotiveSampleCount = 0
                 clearMatch()
                 return
             }
+            remotiveSampleCount = cachedJobs.filter { $0.intakeMethod == .remotive }.count
             state = .loaded(posting)
             importAction = classifyImportAction(for: posting)
             evaluateMatch(for: posting)
@@ -83,6 +88,7 @@ final class JobDetailViewModel {
             AppLogger.ui.error(
                 "Failed to load job detail: \(error.localizedDescription, privacy: .public)"
             )
+            remotiveSampleCount = 0
             state = .failed(error)
             clearMatch()
         }

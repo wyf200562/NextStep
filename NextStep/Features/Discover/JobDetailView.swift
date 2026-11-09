@@ -91,7 +91,7 @@ struct JobDetailView: View {
                 }
 
                 JobDescriptionCard(job: job, highlightSegments: jdHighlightSegments(job, viewModel: viewModel))
-                JobSourceCard(job: job)
+                JobSourceCard(job: job, remotiveSampleCount: viewModel.remotiveSampleCount)
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
@@ -296,6 +296,13 @@ private struct JobDescriptionCard: View {
 
 private struct JobSourceCard: View {
     let job: JobPosting
+    let remotiveSampleCount: Int
+
+    private var remotiveSampleText: String {
+        remotiveSampleCount > 0
+            ? "数据来源 Remotive · 本机 \(remotiveSampleCount) 条样本之一"
+            : "数据来源 Remotive · 本机样本之一"
+    }
 
     var body: some View {
         DetailCard {
@@ -305,7 +312,7 @@ private struct JobSourceCard: View {
 
                 switch job.intakeMethod {
                 case .remotive:
-                    Text("数据来源 Remotive · 本机样本之一")
+                    Text(remotiveSampleText)
                         .font(.subheadline)
                     Text("本机样本不代表 Remotive 全量岗位。")
                         .font(.caption)

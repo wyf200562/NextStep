@@ -2,11 +2,36 @@ import Foundation
 import Observation
 import os
 
-/// Presentation state for the Discover tab: cached jobs, derived match groups, sample counts, and
-/// the session-only internship display filter. Refresh, TTL, and quota handling belong to ticket 23.
+/// Presentation state for the Discover tab: cached jobs, derived match groups, sample counts, the
+/// refresh loop, and the session-only internship display filter.
 @Observable
 @MainActor
 final class DiscoverViewModel {
+    /// The last refresh attempt's outcome. `.skipped(.fresh)` and cancellation are silent.
+    enum RefreshState: Equatable {
+        case idle
+        case refreshing
+        case refreshed(added: Int, updated: Int)
+        case skipped(RefreshOutcome.SkipReason)
+        case failed(RefreshFailure)
+    }
+
+    struct RefreshFailure: Equatable {
+        /// Chinese copy; raw errors are never shown.
+        let message: String
+    }
+
+    /// A user-facing refresh prompt. The View renders notices in amber and blocking prompts
+    /// full-screen; the ViewModel decides which applies from the cache and the outcome.
+    struct RefreshPrompt: Equatable {
+        let title: String
+        let message: String?
+    }
+
+    static let automaticRefreshInterval: TimeInterval = 6 * 60 * 60
+
+    private static let refreshQuery = JobQuery()
+
     private let jobRepository: any JobRepository
     private let dateProvider: any DateProvider
     /// `nil` means the bundled lexicon is unavailable; postings still group by stored job type.
@@ -17,6 +42,12 @@ final class DiscoverViewModel {
 
     private(set) var matchAvailability: MatchAvailability = .unavailable
     private(set) var isShowingAllIneligible = false
+
+    private(set) var refreshState: RefreshState = .idle
+    /// The most recent *successful* refresh, used for the header and the 6-hour TTL.
+    private(set) var lastRefreshAt: Date?
+    /// "本次刷新 N 条" after a `.refreshed` outcome; cleared by any other outcome.
+    private(set) var lastRefreshSummary: String?
 
     /// Derived, never persisted. Recomputed on every cache load.
     private var matches: [String: MatchResult] = [:]
@@ -95,9 +126,129 @@ final class DiscoverViewModel {
         return "\(components.month ?? 1) 月 \(components.day ?? 1) 日 · 今日样本"
     }
 
+    /// "更新于 11 月 9 日 10:05"; the header footer falls back to "尚未成功刷新".
+    var lastRefreshText: String {
+        guard let lastRefreshAt else { return "尚未成功刷新" }
+        let components = dateProvider.calendar.dateComponents(
+            [.month, .day, .hour, .minute],
+            from: lastRefreshAt
+        )
+        let minute = String(format: "%02d", components.minute ?? 0)
+        return "更新于 \(components.month ?? 1) 月 \(components.day ?? 1) 日 \(components.hour ?? 0):\(minute)"
+    }
+
+    var isRefreshing: Bool {
+        refreshState == .refreshing
+    }
+
+    /// The first screen shows a spinner only while the empty cache is being filled.
+    var isInitialLoading: Bool {
+        if case .idle = cacheState { return true }
+        return jobs.isEmpty && isRefreshing
+    }
+
+    /// Amber, non-blocking prompt shown above the list when a cache exists.
+    var refreshNotice: RefreshPrompt? {
+        guard !jobs.isEmpty else { return nil }
+        switch refreshState {
+        case .failed(let failure):
+            return RefreshPrompt(
+                title: "今天没能刷新 · 显示 \(cachedDatePhrase)",
+                message: failure.message
+            )
+        case .skipped(.quotaExhausted):
+            return RefreshPrompt(
+                title: "今天的刷新次数已用完 · 显示 \(cachedDatePhrase)",
+                message: "配额明天恢复，也可以先粘贴 JD。"
+            )
+        case .skipped(.tooSoon):
+            return RefreshPrompt(title: "刷新太频繁，请稍后再试", message: nil)
+        case .idle, .refreshing, .refreshed, .skipped(.fresh):
+            return nil
+        }
+    }
+
+    /// Full-screen "暂时拿不到岗位" state when a blocked or failed refresh has no cache to fall back on.
+    var blockingRefreshPrompt: RefreshPrompt? {
+        guard jobs.isEmpty else { return nil }
+        switch refreshState {
+        case .failed(let failure):
+            return RefreshPrompt(
+                title: "暂时拿不到岗位",
+                message: "\(failure.message)。手动粘贴不依赖 Remotive，可以先用它。"
+            )
+        case .skipped(.quotaExhausted):
+            return RefreshPrompt(
+                title: "暂时拿不到岗位",
+                message: "今天的刷新次数已用完，配额明天恢复。手动粘贴不依赖 Remotive，现在就能用。"
+            )
+        case .skipped(.tooSoon):
+            return RefreshPrompt(
+                title: "暂时拿不到岗位",
+                message: "刷新太频繁，请稍后再试。手动粘贴不依赖 Remotive，现在就能用。"
+            )
+        case .idle, .refreshing, .refreshed, .skipped(.fresh):
+            return nil
+        }
+    }
+
+    /// First appearance: show the cache immediately, then refresh unless a fresh successful refresh
+    /// already covers a non-empty cache.
+    func loadAndRefreshIfNeeded() async {
+        loadCachedJobs()
+        guard !Task.isCancelled else { return }
+
+        if !jobs.isEmpty,
+           let lastSuccess = jobRepository.lastRefreshAt(for: .remotive),
+           dateProvider.now.timeIntervalSince(lastSuccess) < Self.automaticRefreshInterval {
+            refreshState = .skipped(.fresh)
+            return
+        }
+        await refresh()
+    }
+
+    /// Pull-to-refresh, retry, and the post-TTL automatic path. Ignores the 6-hour TTL; the
+    /// repository still enforces the rolling quota and the 60-second interval.
+    func refresh() async {
+        guard !isRefreshing else { return }
+        refreshState = .refreshing
+
+        let outcome = await jobRepository.refreshDiscover(query: Self.refreshQuery)
+        lastRefreshAt = jobRepository.lastRefreshAt(for: .remotive)
+
+        switch outcome {
+        case .refreshed(let added, let updated):
+            loadCachedJobs()
+            lastRefreshAt = jobRepository.lastRefreshAt(for: .remotive)
+            lastRefreshSummary = "本次刷新 \(added + updated) 条"
+            refreshState = .refreshed(added: added, updated: updated)
+        case .skipped(let reason):
+            lastRefreshSummary = nil
+            refreshState = .skipped(reason)
+        case .failed(let error, _):
+            guard !(error is CancellationError) else {
+                lastRefreshSummary = nil
+                refreshState = .idle
+                return
+            }
+            lastRefreshSummary = nil
+            refreshState = .failed(RefreshFailure(message: Self.message(for: error)))
+        }
+    }
+
+    private var cachedDatePhrase: String {
+        guard let lastRefreshAt else { return "本机缓存" }
+        let components = dateProvider.calendar.dateComponents(
+            [.month, .day],
+            from: lastRefreshAt
+        )
+        return "\(components.month ?? 1) 月 \(components.day ?? 1) 日的缓存"
+    }
+
     func loadCachedJobs() {
         do {
             cacheState = .loaded(try jobRepository.cachedJobs())
+            lastRefreshAt = jobRepository.lastRefreshAt(for: .remotive)
             refreshMatches()
         } catch {
             cacheState = .failed(error)
