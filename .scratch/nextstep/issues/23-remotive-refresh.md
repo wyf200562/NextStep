@@ -47,6 +47,8 @@ xcodebuild -project NextStep.xcodeproj -scheme NextStep \
 
 结果：exit 0，`** TEST SUCCEEDED **`；336 个测试函数 / 34 个 suite，设备级 `passedTests 566`、`failedTests 0`、`skippedTests 0`（iPhone 18 Pro Max / iOS 27.0）。全部网络用例通过注入的 `URLSession` + `URLProtocolStub` 完成，未联网；节流与 TTL 用 `MutableDateProvider`、`FixedDateProvider` 与临时 UserDefaults suite 保证确定性。
 
+- 集成验证（2026-11-09）：merge commit `413c29d` 合入 integration/nextstep-v1（基于 `147ae61`，无冲突）；iPhone 18 Pro（iOS 27.0）全量测试 exit 0、`** TEST SUCCEEDED **`，336 个测试函数 / 34 个 suite 全部通过，0 失败 0 跳过。
+
 ### 决策与说明
 
 - **ledger 记账时机**：按 spec「一次尝试在发起时记账」，repository 在调用 source 之前 `recordAttempt`，所以失败与被取消的尝试都消耗配额；`lastSuccess` 只在全部 upsert 成功后写入，保存失败不更新「更新于」。
