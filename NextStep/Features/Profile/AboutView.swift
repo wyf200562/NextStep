@@ -20,13 +20,10 @@ struct AboutView: View {
             }
 
             Section("开源链接") {
-                Link(destination: AppInfo.provisionalGitHubURL) {
+                Link(destination: AppInfo.githubURL) {
                     Label("GitHub", systemImage: "link")
                 }
                 .accessibilityLabel("在 GitHub 上查看 NextStep")
-                Text("仓库地址为临时占位，正式公开地址会在发布准备中更新。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
 
             #if DEBUG

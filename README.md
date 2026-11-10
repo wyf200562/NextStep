@@ -4,7 +4,7 @@ NextStep 是一个 iOS 实习申请追踪与岗位发现应用：把投递进度
 
 所有数据只保存在本机；不登录、不云同步、不依赖任何第三方库。
 
-> **仓库地址**：`https://github.com/`（中性占位地址）。正式公开仓库后，替换本文件与 `AppInfo.provisionalGitHubURL` 中的地址即可。
+> **仓库地址**：<https://github.com/wyf200562/NextStep>
 
 ## 项目简介与截图
 
@@ -182,7 +182,6 @@ xcodebuild -project NextStep.xcodeproj -scheme NextStep \
 - 不做 URL 导入、漏斗/状态分布图、全文搜索、自定义排序、CSV 导入导出。
 - 不做账号、iCloud/CloudKit、多设备同步、Share Extension、Widget、App Group。
 - 只承诺模拟器演示；免费账号真机签名 7 天过期。
-- GitHub 仓库地址暂为中性占位 `https://github.com/`，需在公开仓库后替换。
 
 ### P1 Roadmap
 
