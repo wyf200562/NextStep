@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+
+# Claude Code local state / worktrees (keep project settings committable)
+.claude/worktrees/
+.claude/settings.local.json
+
+# Xcode build and user state
+DerivedData/
+build/
+xcuserdata/
+*.xcuserstate
+*.xcresult
+
+# Local issue tracker and specs (not for publication)
+.scratch/
