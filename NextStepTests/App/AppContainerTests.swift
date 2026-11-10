@@ -117,4 +117,14 @@ struct AppContainerTests {
         #expect(try container.jobRepository.cachedJobs().isEmpty)
         #expect(container.jobRepository.lastRefreshAt(for: .remotive) == nil)
     }
+
+    @Test func inMemoryContainersDoNotShareRefreshLedgerState() throws {
+        let first = try AppContainer.makeInMemory()
+        let second = try AppContainer.makeInMemory()
+
+        first.refreshLedger.recordSuccess(for: .remotive)
+
+        #expect(first.jobRepository.lastRefreshAt(for: .remotive) != nil)
+        #expect(second.jobRepository.lastRefreshAt(for: .remotive) == nil)
+    }
 }

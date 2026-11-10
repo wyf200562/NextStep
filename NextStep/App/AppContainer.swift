@@ -103,11 +103,24 @@ final class AppContainer {
     }
 
     /// Creates a fully in-memory container for tests and Previews.
+    ///
+    /// The refresh ledger uses a unique throwaway `UserDefaults` suite so in-memory containers never
+    /// read or write the app's persisted Remotive quota bookkeeping.
     static func makeInMemory(
         dateProvider: any DateProvider = SystemDateProvider(),
-        router: AppRouter = AppRouter()
+        router: AppRouter = AppRouter(),
+        refreshLedger: RefreshLedger? = nil
     ) throws -> AppContainer {
         let modelContainer = try ModelContainerFactory.makeContainer(isStoredInMemoryOnly: true)
-        return AppContainer(modelContainer: modelContainer, dateProvider: dateProvider, router: router)
+        let ledger = refreshLedger ?? RefreshLedger(
+            userDefaults: UserDefaults(suiteName: "NextStep.InMemory.\(UUID().uuidString)")!,
+            dateProvider: dateProvider
+        )
+        return AppContainer(
+            modelContainer: modelContainer,
+            dateProvider: dateProvider,
+            router: router,
+            refreshLedger: ledger
+        )
     }
 }
