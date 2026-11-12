@@ -82,7 +82,7 @@ flowchart LR
 ```
 
 | 层 | 职责 | 代表文件 |
-|---|---|---|
+|---|---|---|---|---|
 | App | 组合根、路由、根 tab | `NextStep/App/AppContainer.swift` |
 | Features | 页面、ViewModel、纯展示 helper | `NextStep/Features/Discover/DiscoverViewModel.swift` |
 | Domain | 5 个 `@Model`、状态机、匹配引擎、仓库/来源协议 | `NextStep/Domain/Matching/MatchingEngine.swift` |
