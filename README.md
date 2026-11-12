@@ -74,7 +74,7 @@ NextStep 面向同时处理多份实习投递的求职者：一边记录申请�
 ```mermaid
 flowchart LR
     App[App<br/>NextStepApp · AppContainer · Router] --> Features[Features<br/>SwiftUI 页面 + ViewModel]
-    Features --> Domain[Domain<br/>@Model · 状态机 · 匹配 · 仓库协议]
+    Features --> Domain["Domain<br/>@Model · 状态机 · 匹配 · 仓库协议"]
     Data[Data<br/>SwiftData 仓库 · JobSource · 词典加载 · RefreshLedger] --> Domain
     App --> Data
     Features --> Core[Core<br/>LoadState · DateProvider · HTML 归一化 · Logger]
