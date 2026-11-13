@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import NextStep
 
-@Suite("JobSourceErrorCopy")
-struct JobSourceErrorCopyTests {
+@Suite("JobSourceError message copy")
+struct JobSourceErrorTests {
     nonisolated struct MessageCase: Sendable {
         let error: JobSourceError
         let message: String
@@ -18,23 +18,24 @@ struct JobSourceErrorCopyTests {
         MessageCase(error: .decoding, message: "数据格式暂时无法识别"),
     ])
     func mapsEveryTypedSourceErrorToSpecCopy(testCase: MessageCase) {
-        let message = JobSourceErrorCopy.message(
-            for: testCase.error,
-            fallback: "加载失败，请稍后重试"
+        #expect(testCase.error.message == testCase.message)
+        #expect(
+            JobSourceError.message(
+                for: testCase.error,
+                fallback: "加载失败，请稍后重试"
+            ) == testCase.message
         )
-
-        #expect(message == testCase.message)
     }
 
     @Test func unknownErrorsUseTheCallersFallback() {
         #expect(
-            JobSourceErrorCopy.message(
+            JobSourceError.message(
                 for: RepositoryError.loadFailed,
                 fallback: "加载失败，请稍后重试"
             ) == "加载失败，请稍后重试"
         )
         #expect(
-            JobSourceErrorCopy.message(
+            JobSourceError.message(
                 for: RepositoryError.saveFailed,
                 fallback: "保存失败，请重试"
             ) == "保存失败，请重试"

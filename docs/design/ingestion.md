@@ -16,7 +16,7 @@ flowchart LR
     JR --> RL[RefreshLedger<br/>UserDefaults]
 ```
 
-相关 ADR：[0003 统一摄入缝](../adr/0003-job-ingestion-seam.md)。
+相关 ADR：[0003 统一摄入缝](../adr/0003-job-ingestion-seam.md)。展开到具体类型、时序与分支的详图见 [ingestion-architecture.md](ingestion-architecture.md)。
 
 ## 协议
 

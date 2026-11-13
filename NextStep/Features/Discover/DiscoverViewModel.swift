@@ -307,7 +307,7 @@ final class DiscoverViewModel {
 
     /// Maps typed data-layer failures to the Chinese copy from spec §11; never shows raw errors.
     private static func message(for error: any Error) -> String {
-        JobSourceErrorCopy.message(for: error, fallback: "加载失败，请稍后重试")
+        JobSourceError.message(for: error, fallback: "加载失败，请稍后重试")
     }
 
     private static let ineligiblePreviewLimit = 4

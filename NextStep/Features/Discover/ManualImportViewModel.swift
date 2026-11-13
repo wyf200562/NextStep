@@ -151,6 +151,6 @@ final class ManualImportViewModel {
 
     /// Maps typed failures to the Chinese copy from spec §11; never shows raw errors.
     private static func message(for error: any Error) -> String {
-        JobSourceErrorCopy.message(for: error, fallback: "保存失败，请重试")
+        JobSourceError.message(for: error, fallback: "保存失败，请重试")
     }
 }
