@@ -8,29 +8,37 @@ struct RootTabView: View {
     var body: some View {
         @Bindable var router = container.router
         TabView(selection: $router.selectedTab) {
-            OverviewTabView()
-                .tabItem {
-                    Label(AppTab.overview.title, systemImage: AppTab.overview.systemImage)
-                }
-                .tag(AppTab.overview)
+            Tab(
+                AppTab.overview.title,
+                systemImage: AppTab.overview.systemImage,
+                value: AppTab.overview
+            ) {
+                OverviewTabView()
+            }
 
-            ApplicationsTabView()
-                .tabItem {
-                    Label(AppTab.applications.title, systemImage: AppTab.applications.systemImage)
-                }
-                .tag(AppTab.applications)
+            Tab(
+                AppTab.applications.title,
+                systemImage: AppTab.applications.systemImage,
+                value: AppTab.applications
+            ) {
+                ApplicationsTabView()
+            }
 
-            DiscoverTabView()
-                .tabItem {
-                    Label(AppTab.discover.title, systemImage: AppTab.discover.systemImage)
-                }
-                .tag(AppTab.discover)
+            Tab(
+                AppTab.discover.title,
+                systemImage: AppTab.discover.systemImage,
+                value: AppTab.discover
+            ) {
+                DiscoverTabView()
+            }
 
-            ProfileTabView()
-                .tabItem {
-                    Label(AppTab.profile.title, systemImage: AppTab.profile.systemImage)
-                }
-                .tag(AppTab.profile)
+            Tab(
+                AppTab.profile.title,
+                systemImage: AppTab.profile.systemImage,
+                value: AppTab.profile
+            ) {
+                ProfileTabView()
+            }
         }
     }
 }
