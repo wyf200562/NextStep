@@ -229,6 +229,8 @@ final class FakeApplicationRepository: ApplicationRepository {
         )
         application.interviewRounds.append(round)
         round.application = application
+        // Mirrors the real repository: recording a round may move the pointer (ADR-0005 decision 4).
+        application.deadline = application.deadlineAfterRecordingRound(at: scheduledAt)
         return round
     }
 
@@ -259,6 +261,10 @@ final class FakeApplicationRepository: ApplicationRepository {
         round.contact = contact
         round.notes = notes
         round.result = result
+        // Mirrors the real repository: rescheduling may move the pointer (ADR-0005 decision 4).
+        if let application = round.application {
+            application.deadline = application.deadlineAfterRecordingRound(at: scheduledAt)
+        }
     }
 
     func deleteInterviewRound(_ round: InterviewRound) throws {
