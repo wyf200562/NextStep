@@ -6,8 +6,9 @@ import SwiftData
 ///
 /// Creation inserts the `Application` and its initial `StatusChange` in one save. Snapshot edits,
 /// deletion (cascading rounds and status history but keeping the `JobPosting`), validated status
-/// changes, and interview-round writes each save atomically. Round writes only stamp the owning
-/// application's `lastModifiedAt`; they never change `Application.status`.
+/// changes, and interview-round writes each save atomically. Round writes stamp the owning
+/// application's `lastModifiedAt` and move its `deadline` pointer to the earlier instant (ADR-0005
+/// decision 4); they never change `Application.status`.
 @MainActor
 final class SwiftDataApplicationRepository: ApplicationRepository {
     private let context: ModelContext
@@ -220,6 +221,8 @@ final class SwiftDataApplicationRepository: ApplicationRepository {
         )
         context.insert(round)
         round.application = application
+        // ADR-0005 decision 4: the pointer follows the round only when it is empty or later.
+        application.deadline = application.deadlineAfterRecordingRound(at: scheduledAt)
         application.lastModifiedAt = dateProvider.now
 
         do {
@@ -251,7 +254,10 @@ final class SwiftDataApplicationRepository: ApplicationRepository {
         round.notes = notes
         round.result = result
         // Rounds never change the application status; an edit only counts as a modification.
-        round.application?.lastModifiedAt = dateProvider.now
+        if let application = round.application {
+            application.deadline = application.deadlineAfterRecordingRound(at: scheduledAt)
+            application.lastModifiedAt = dateProvider.now
+        }
 
         do {
             try context.save()
