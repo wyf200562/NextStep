@@ -90,7 +90,7 @@ struct ApplicationsView: View {
         return switch filter {
         case .all: "还没有申请"
         case .active: "没有进行中的申请"
-        case .upcoming: "7 天内没有下一个节点"
+        case .upcoming: "接下来 7 天没有节点"
         case .offer: "还没有 Offer"
         case .ended: "没有已结束的申请"
         }
