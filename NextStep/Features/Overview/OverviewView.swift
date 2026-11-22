@@ -5,7 +5,8 @@ import UIKit
 /// 概览 tab: the action-first dashboard.
 ///
 /// `@Query` fetches applications; the pure `DashboardBuilder` derives today's and the next seven
-/// days' events, the three progress counts, and the five most recently updated applications.
+/// days' nodes, the progress counts, the overdue count, and the five most recently updated
+/// applications.
 /// No ViewModel lives here — every action is a router call or the shared editor sheet.
 struct OverviewView: View {
     @Environment(AppContainer.self) private var container
@@ -26,6 +27,7 @@ struct OverviewView: View {
                 if applications.isEmpty {
                     emptyState
                 } else {
+                    overdueNotice(snapshot.overdueCount)
                     events(snapshot)
                     progressCounts(snapshot)
                     recentUpdates(snapshot)
@@ -102,6 +104,37 @@ struct OverviewView: View {
         .padding(.vertical, 32)
     }
 
+    // MARK: - Overdue notice
+
+    /// One row above the agenda: past nodes leave the agenda, so their count lives here instead.
+    /// Hidden when nothing is overdue.
+    @ViewBuilder
+    private func overdueNotice(_ count: Int) -> some View {
+        if count > 0 {
+            Button {
+                container.router.openApplications(filter: .all)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "clock.badge.exclamationmark")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.orange)
+                    Text("\(count) 个申请的节点已过，去更新")
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                    Spacer(minLength: 6)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(cardBackground)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("打开全部申请")
+        }
+    }
+
     // MARK: - Events
 
     @ViewBuilder
@@ -119,7 +152,7 @@ struct OverviewView: View {
             }
         } else {
             section("接下来 7 天") {
-                Text("7 天内没有截止或面试。去 Discover 看看新岗位。")
+                Text("接下来 7 天没有节点。去 Discover 看看新岗位。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -159,10 +192,10 @@ struct OverviewView: View {
             HStack(spacing: 8) {
                 countButton(snapshot.activeCount, label: "进行中", filter: .active, highlightsValue: false)
                 countButton(
-                    snapshot.dueSoonCount,
-                    label: "7 天内截止",
+                    snapshot.upcomingCount,
+                    label: "接下来 7 天",
                     filter: .upcoming,
-                    highlightsValue: snapshot.dueSoonCount > 0
+                    highlightsValue: snapshot.upcomingCount > 0
                 )
                 countButton(snapshot.offerCount, label: "Offer", filter: .offer, highlightsValue: false)
             }

@@ -178,9 +178,9 @@ struct GoldenPathIntegrationTests {
                 calendar: calendar
             )
             #expect(snapshot.activeCount == 1)
-            #expect(snapshot.dueSoonCount == 1)
-            #expect(snapshot.upcomingEvents.contains { $0.kind == .interview && $0.roundLabel == "一面" })
-            #expect(snapshot.upcomingEvents.contains { $0.kind == .deadline })
+            #expect(snapshot.upcomingCount == 1)
+            // Ticket 05 owns the final alignment.
+            #expect(snapshot.upcomingEvents.contains { $0.applicationID == application.id })
             #expect(snapshot.recentApplications.first?.id == application.id)
             #expect(ledger.nextAttemptBlock(for: .remotive) == nil)
         }

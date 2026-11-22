@@ -72,92 +72,130 @@ struct DashboardBuilderTests {
         )
     }
 
-    @Test("today lists today's deadlines and pending interviews, keeps past events flagged, and excludes other days")
-    func todayWindowKeepsPastEventsAndExcludesOtherDays() {
-        let now = day(0, hour: 10)
+    @Test("today starts at this instant: an earlier node leaves the agenda and is counted as overdue")
+    func todayAgendaStartsAtNowAndCountsPastNodesAsOverdue() {
+        let now = day(0, hour: 13)
         let applications = [
             application(id: fixedID(1), deadline: day(0, hour: 9)),
-            application(id: fixedID(2), rounds: [RoundSpec(date: day(0, hour: 15), label: "一面")]),
-            application(id: fixedID(3), deadline: day(1, hour: 9)),
-            application(id: fixedID(4), deadline: day(-1, hour: 9)),
-            application(id: fixedID(5), rounds: [RoundSpec(date: day(0, hour: 11), result: .passed)]),
-            application(id: fixedID(6), status: .rejected, deadline: day(0, hour: 12)),
+            application(id: fixedID(2), deadline: now),
+            application(id: fixedID(3), deadline: day(0, hour: 14)),
         ]
 
         let result = snapshot(applications, now: now)
 
-        #expect(result.todayEvents.map(\.applicationID) == [fixedID(1), fixedID(2)])
-        #expect(result.todayEvents.map(\.kind) == [.deadline, .interview])
-        #expect(result.todayEvents[0].isPast)
-        #expect(!result.todayEvents[1].isPast)
-        #expect(result.todayEvents[1].roundLabel == "一面")
-        #expect(result.todayEvents[1].title == "面试 · 一面")
-        #expect(result.upcomingEvents.map(\.applicationID) == [fixedID(3)])
+        #expect(result.todayEvents.map(\.applicationID) == [fixedID(2), fixedID(3)])
+        #expect(result.overdueCount == 1)
     }
 
-    @Test("the upcoming window covers tomorrow through today plus seven, and includes offer deadlines")
-    func upcomingWindowCoversTomorrowThroughDaySeven() {
+    @Test("the upcoming window is tomorrow through midnight on day eight, and one application yields one event")
+    func upcomingWindowIsTomorrowThroughDayEightMidnight() {
         let applications = [
             application(id: fixedID(1), deadline: day(0, hour: 23, minute: 59)),
             application(id: fixedID(2), deadline: day(1, hour: 0)),
             application(id: fixedID(3), deadline: day(7, hour: 23, minute: 59)),
             application(id: fixedID(4), deadline: day(8, hour: 0)),
-            application(id: fixedID(5), rounds: [RoundSpec(date: day(1, hour: 0))]),
-            application(id: fixedID(6), rounds: [RoundSpec(date: day(7, hour: 23, minute: 59))]),
-            application(id: fixedID(7), status: .offer, deadline: day(2, hour: 9)),
+            application(id: fixedID(5), deadline: day(-1, hour: 23, minute: 59)),
+            application(id: fixedID(6), status: .offer, deadline: day(2, hour: 9)),
         ]
 
         let result = snapshot(applications)
 
         #expect(result.todayEvents.map(\.applicationID) == [fixedID(1)])
-        #expect(Set(result.upcomingEvents.map(\.applicationID)) == Set([
-            fixedID(2), fixedID(3), fixedID(5), fixedID(6), fixedID(7),
-        ]))
+        #expect(result.upcomingEvents.map(\.applicationID) == [fixedID(2), fixedID(6), fixedID(3)])
+        #expect(result.overdueCount == 1)
     }
 
-    @Test("events merge by time, then application id, deadline before interview, then round id")
-    func eventsMergeWithTheAgreedTieBreakers() {
-        let sharedInstant = day(1, hour: 9)
-        let laterRound = RoundSpec(id: fixedID(22), date: sharedInstant, label: "R2")
-        let earlierRound = RoundSpec(id: fixedID(21), date: sharedInstant, label: "R1")
+    @Test("one application produces at most one event even when rounds sit inside the week")
+    func oneApplicationProducesAtMostOneEvent() {
+        let subject = application(
+            id: fixedID(1),
+            deadline: day(2, hour: 9),
+            rounds: [
+                RoundSpec(date: day(2, hour: 9), label: "终面"),
+                RoundSpec(date: day(3, hour: 9), label: "HR 面"),
+            ]
+        )
 
+        let result = snapshot([subject])
+
+        #expect(result.todayEvents.isEmpty)
+        #expect(result.upcomingEvents.count == 1)
+        #expect(result.upcomingEvents.first?.applicationID == fixedID(1))
+        #expect(result.upcomingEvents.first?.title == "终面")
+    }
+
+    @Test("rounds without a deadline produce no event and no count")
+    func futureRoundsAloneAreInvisible() {
+        let subject = application(
+            id: fixedID(1),
+            rounds: [RoundSpec(date: day(1, hour: 9), label: "一面")]
+        )
+
+        let result = snapshot([subject])
+
+        #expect(result.todayEvents.isEmpty)
+        #expect(result.upcomingEvents.isEmpty)
+        #expect(result.upcomingCount == 0)
+        #expect(result.overdueCount == 0)
+    }
+
+    @Test("ended applications never enter the agenda or the counts")
+    func terminalApplicationsAreInvisible() {
+        let applications = [
+            application(id: fixedID(1), status: .rejected, deadline: day(1, hour: 9)),
+            application(id: fixedID(2), status: .withdrawn, deadline: day(-3, hour: 9)),
+        ]
+
+        let result = snapshot(applications)
+
+        #expect(result.todayEvents.isEmpty)
+        #expect(result.upcomingEvents.isEmpty)
+        #expect(result.upcomingCount == 0)
+        #expect(result.overdueCount == 0)
+    }
+
+    @Test("event titles come from the shared node copy")
+    func eventTitlesComeFromTheSharedCopy() {
         let applications = [
             application(
-                id: fixedID(12),
-                deadline: day(1, hour: 10)
+                id: fixedID(1),
+                deadline: day(2, hour: 14),
+                rounds: [RoundSpec(date: day(2, hour: 14), label: "终面")]
             ),
             application(
                 id: fixedID(2),
-                deadline: sharedInstant
+                deadline: day(2, hour: 15),
+                rounds: [RoundSpec(date: day(2, hour: 15))]
             ),
-            application(
-                id: fixedID(1),
-                deadline: sharedInstant,
-                rounds: [laterRound, earlierRound]
-            ),
-            application(
-                id: fixedID(3),
-                deadline: day(1, hour: 8)
-            ),
+            application(id: fixedID(3), deadline: day(2, hour: 16)),
+        ]
+
+        let titles = Dictionary(
+            uniqueKeysWithValues: snapshot(applications).upcomingEvents.map {
+                ($0.applicationID, $0.title)
+            }
+        )
+
+        #expect(titles[fixedID(1)] == "终面")
+        #expect(titles[fixedID(2)] == "面试")
+        #expect(titles[fixedID(3)] == "截止")
+    }
+
+    @Test("events order by time, then application id")
+    func eventsOrderByTimeThenApplicationID() {
+        let sharedInstant = day(1, hour: 9)
+        let applications = [
+            application(id: fixedID(3), deadline: sharedInstant),
+            application(id: fixedID(1), deadline: sharedInstant),
+            application(id: fixedID(2), deadline: day(1, hour: 8)),
         ]
 
         let events = snapshot(applications).upcomingEvents
 
-        #expect(events.count == 6)
-        #expect(events[0].applicationID == fixedID(3))
-        #expect(events[1].applicationID == fixedID(1))
-        #expect(events[1].kind == .deadline)
-        #expect(events[2].applicationID == fixedID(1))
-        #expect(events[2].kind == .interview)
-        #expect(events[2].roundID == fixedID(21))
-        #expect(events[3].applicationID == fixedID(1))
-        #expect(events[3].kind == .interview)
-        #expect(events[3].roundID == fixedID(22))
-        #expect(events[4].applicationID == fixedID(2))
-        #expect(events[5].applicationID == fixedID(12))
+        #expect(events.map(\.applicationID) == [fixedID(2), fixedID(1), fixedID(3)])
     }
 
-    @Test("progress counts dedupe applications and offer deadlines count as due soon")
+    @Test("progress counts use one row per application and the same window as the list")
     func progressCountsDedupeApplications() {
         let applications = [
             application(id: fixedID(1), status: .applied, deadline: day(0, hour: 0)),
@@ -182,8 +220,33 @@ struct DashboardBuilderTests {
         let result = snapshot(applications)
 
         #expect(result.activeCount == 5) // 1, 2, 4, 7, 8
-        #expect(result.dueSoonCount == 3) // 1, 2 (deadline + round counted once), 3 (offer deadline)
+        #expect(result.upcomingCount == 2) // 2, 3 — the 00:00 node on day zero is already overdue
+        #expect(result.overdueCount == 1) // 1
         #expect(result.offerCount == 1)
+    }
+
+    @Test("upcomingCount equals the row count of the list's upcoming filter")
+    func upcomingCountMatchesTheListFilter() {
+        let now = day(0, hour: 13)
+        let applications = [
+            application(id: fixedID(1), deadline: day(0, hour: 12)),
+            application(id: fixedID(2), deadline: now),
+            application(id: fixedID(3), deadline: day(7, hour: 23, minute: 59)),
+            application(id: fixedID(4), deadline: day(8, hour: 0)),
+            application(id: fixedID(5), rounds: [RoundSpec(date: day(1, hour: 9))]),
+            application(id: fixedID(6), status: .withdrawn, deadline: day(1, hour: 9)),
+        ]
+
+        let result = snapshot(applications, now: now)
+        let listRows = ApplicationListBuilder.snapshot(
+            for: .upcoming,
+            applications: applications,
+            now: now,
+            calendar: calendar
+        ).rows
+
+        #expect(result.upcomingCount == 2) // 2, 3
+        #expect(result.upcomingCount == listRows.count)
     }
 
     @Test("recent updates are the five latest by last modification, then application id, across all statuses")
@@ -213,88 +276,93 @@ struct DashboardBuilderTests {
         #expect(result.todayEvents.isEmpty)
         #expect(result.upcomingEvents.isEmpty)
         #expect(result.activeCount == 0)
-        #expect(result.dueSoonCount == 0)
+        #expect(result.upcomingCount == 0)
+        #expect(result.overdueCount == 0)
         #expect(result.offerCount == 0)
         #expect(result.recentApplications.isEmpty)
         #expect(!result.hasEvents)
     }
 
-    // MARK: - Table-driven source and window rules
+    // MARK: - Table-driven agenda and window rules
 
-    enum SourceScenario: CaseIterable, Sendable, CustomTestStringConvertible {
+    enum AgendaScenario: CaseIterable, Sendable, CustomTestStringConvertible {
         case todayDeadline
-        case todayPendingRound
+        case todayNodeAlreadyPast
         case tomorrowDeadline
         case daySevenDeadline
-        case dayEightDeadline
+        case dayEightMidnightDeadline
         case yesterdayDeadline
-        case finishedRound
         case rejectedDeadline
-        case withdrawnPendingRound
+        case withdrawnDeadline
         case offerDeadline
+        case futureRoundWithoutDeadline
 
         var testDescription: String {
             switch self {
             case .todayDeadline: "today deadline"
-            case .todayPendingRound: "today pending round"
+            case .todayNodeAlreadyPast: "today node already past"
             case .tomorrowDeadline: "tomorrow deadline"
             case .daySevenDeadline: "day seven deadline"
-            case .dayEightDeadline: "day eight deadline"
+            case .dayEightMidnightDeadline: "day eight midnight deadline"
             case .yesterdayDeadline: "yesterday deadline"
-            case .finishedRound: "finished round"
             case .rejectedDeadline: "rejected deadline"
-            case .withdrawnPendingRound: "withdrawn pending round"
+            case .withdrawnDeadline: "withdrawn deadline"
             case .offerDeadline: "offer deadline"
+            case .futureRoundWithoutDeadline: "future round without deadline"
             }
         }
     }
 
-    @Test("event sources and windows follow the spec table", arguments: SourceScenario.allCases)
-    func eventSourceAndWindowRules(_ scenario: SourceScenario) {
+    @Test("agenda and counts follow the deadline-only table", arguments: AgendaScenario.allCases)
+    func agendaFollowsTheDeadlineOnlyTable(_ scenario: AgendaScenario) {
         let subject: Application
         switch scenario {
         case .todayDeadline:
             subject = application(id: fixedID(1), deadline: day(0, hour: 23))
-        case .todayPendingRound:
-            subject = application(id: fixedID(1), rounds: [RoundSpec(date: day(0, hour: 23))])
+        case .todayNodeAlreadyPast:
+            subject = application(id: fixedID(1), deadline: day(0, hour: 9))
         case .tomorrowDeadline:
             subject = application(id: fixedID(1), deadline: day(1, hour: 0))
         case .daySevenDeadline:
             subject = application(id: fixedID(1), deadline: day(7, hour: 23, minute: 59))
-        case .dayEightDeadline:
+        case .dayEightMidnightDeadline:
             subject = application(id: fixedID(1), deadline: day(8, hour: 0))
         case .yesterdayDeadline:
             subject = application(id: fixedID(1), deadline: day(-1, hour: 23, minute: 59))
-        case .finishedRound:
-            subject = application(
-                id: fixedID(1),
-                rounds: [RoundSpec(date: day(1, hour: 9), result: .passed)]
-            )
         case .rejectedDeadline:
             subject = application(id: fixedID(1), status: .rejected, deadline: day(1, hour: 9))
-        case .withdrawnPendingRound:
-            subject = application(
-                id: fixedID(1),
-                status: .withdrawn,
-                rounds: [RoundSpec(date: day(1, hour: 9))]
-            )
+        case .withdrawnDeadline:
+            subject = application(id: fixedID(1), status: .withdrawn, deadline: day(-1, hour: 9))
         case .offerDeadline:
             subject = application(id: fixedID(1), status: .offer, deadline: day(2, hour: 9))
+        case .futureRoundWithoutDeadline:
+            subject = application(id: fixedID(1), rounds: [RoundSpec(date: day(1, hour: 9))])
         }
 
         let result = snapshot([subject])
 
         switch scenario {
-        case .todayDeadline, .todayPendingRound:
+        case .todayDeadline:
             #expect(result.todayEvents.count == 1)
             #expect(result.upcomingEvents.isEmpty)
+            #expect(result.upcomingCount == 1)
+            #expect(result.overdueCount == 0)
         case .tomorrowDeadline, .daySevenDeadline, .offerDeadline:
             #expect(result.todayEvents.isEmpty)
             #expect(result.upcomingEvents.count == 1)
-        case .dayEightDeadline, .yesterdayDeadline, .finishedRound, .rejectedDeadline, .withdrawnPendingRound:
+            #expect(result.upcomingCount == 1)
+            #expect(result.overdueCount == 0)
+        case .todayNodeAlreadyPast, .yesterdayDeadline:
             #expect(result.todayEvents.isEmpty)
             #expect(result.upcomingEvents.isEmpty)
+            #expect(result.upcomingCount == 0)
+            #expect(result.overdueCount == 1)
+        case .dayEightMidnightDeadline, .rejectedDeadline, .withdrawnDeadline,
+             .futureRoundWithoutDeadline:
+            #expect(result.todayEvents.isEmpty)
+            #expect(result.upcomingEvents.isEmpty)
+            #expect(result.upcomingCount == 0)
+            #expect(result.overdueCount == 0)
         }
-        #expect(result.hasEvents == !result.todayEvents.isEmpty || !result.upcomingEvents.isEmpty)
     }
 }
