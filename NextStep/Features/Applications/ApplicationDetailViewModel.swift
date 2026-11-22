@@ -63,10 +63,11 @@ final class ApplicationDetailViewModel {
         } ?? []
     }
 
-    /// The earlier of the upcoming deadline and the nearest pending round.
-    var nextNode: ApplicationNextNode? {
+    /// The node card's data. Shares the list row's gate and copy: nil when there is no deadline or
+    /// the status is ended, and the deadline is overdue rather than hidden once it has passed.
+    var nextNode: ApplicationNode? {
         application.flatMap {
-            ApplicationNextNode.nearest(for: $0, at: dateProvider.now)
+            ApplicationNodeCopy.node(for: $0, now: currentDate)
         }
     }
 

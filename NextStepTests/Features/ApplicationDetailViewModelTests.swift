@@ -277,54 +277,92 @@ struct ApplicationDetailViewModelTests {
         #expect(viewModel.application === application)
     }
 
-    // MARK: - Interview rounds
+    // MARK: - The node card
 
-    @Test("the next node is the earlier of an upcoming deadline and the nearest pending round")
-    func nextNodeMergesDeadlineAndPendingRounds() {
-        let roundFirstFake = FakeApplicationRepository()
-        let roundFirst = makeViewModel(
-            fake: roundFirstFake,
-            application: makeApplication(
-                status: .oa,
-                deadline: hoursLater(72),
-                rounds: [round(id: 2, at: hoursLater(24), label: "一面")]
-            )
+    @Test("the detail node is the same node the list row shows")
+    func detailNodeMatchesTheListRow() {
+        let application = makeApplication(
+            status: .oa,
+            deadline: hoursLater(72),
+            rounds: [round(id: 2, at: hoursLater(72), label: "一面")]
         )
-        roundFirst.load()
+        let fake = FakeApplicationRepository()
+        let viewModel = makeViewModel(fake: fake, application: application)
+        viewModel.load()
 
-        #expect(roundFirst.nextNode?.kind == .interview)
-        #expect(roundFirst.nextNode?.date == hoursLater(24))
-        #expect(roundFirst.nextNode?.roundLabel == "一面")
-        #expect(roundFirst.nextNode?.roundID == fixedID(2))
-
-        let deadlineFirstFake = FakeApplicationRepository()
-        let deadlineFirst = makeViewModel(
-            fake: deadlineFirstFake,
-            application: makeApplication(
-                status: .applied,
-                deadline: hoursLater(12),
-                rounds: [round(id: 3, at: hoursLater(30), label: "二面")]
-            )
+        let snapshot = ApplicationListBuilder.snapshot(
+            for: .all,
+            applications: [application],
+            now: now,
+            calendar: calendar
         )
-        deadlineFirst.load()
 
-        #expect(deadlineFirst.nextNode?.kind == .deadline)
-        #expect(deadlineFirst.nextNode?.date == hoursLater(12))
-        #expect(deadlineFirst.nextNode?.roundLabel == nil)
+        #expect(viewModel.nextNode != nil)
+        #expect(viewModel.nextNode == snapshot.rows.first?.node)
     }
 
-    @Test("the next node ignores past and non-pending rounds and has no node when nothing is upcoming")
-    func nextNodeIgnoresPastAndFinishedRounds() {
+    @Test("a round sitting on the deadline supplies the node title")
+    func nodeTitleComesFromTheRoundOnTheInstant() {
+        let deadline = hoursLater(24)
+        let application = makeApplication(
+            status: .interview,
+            deadline: deadline,
+            rounds: [round(id: 1, at: deadline, label: "终面")]
+        )
+        let fake = FakeApplicationRepository()
+        let viewModel = makeViewModel(fake: fake, application: application)
+        viewModel.load()
+
+        #expect(viewModel.nextNode?.date == deadline)
+        #expect(viewModel.nextNode?.title == "终面")
+    }
+
+    @Test("a round with a blank label supplies 「面试」")
+    func nodeTitleFallsBackToInterviewForABlankLabel() {
+        let deadline = hoursLater(24)
+        let application = makeApplication(
+            status: .interview,
+            deadline: deadline,
+            rounds: [round(id: 1, at: deadline, label: nil)]
+        )
+        let fake = FakeApplicationRepository()
+        let viewModel = makeViewModel(fake: fake, application: application)
+        viewModel.load()
+
+        #expect(viewModel.nextNode?.title == "面试")
+    }
+
+    @Test("no round on the deadline makes the node 「截止」")
+    func nodeTitleIsDeadlineWithoutAMatchingRound() {
+        let application = makeApplication(
+            status: .oa,
+            deadline: hoursLater(24),
+            rounds: [round(id: 1, at: hoursLater(48), label: "二面")]
+        )
+        let fake = FakeApplicationRepository()
+        let viewModel = makeViewModel(fake: fake, application: application)
+        viewModel.load()
+
+        #expect(viewModel.nextNode?.title == "截止")
+    }
+
+    @Test("an ended application has no node even with a deadline", arguments: [ApplicationStatus.rejected, .withdrawn])
+    func endedApplicationShowsNoNode(status: ApplicationStatus) {
+        let fake = FakeApplicationRepository()
+        let application = makeApplication(status: status, deadline: hoursLater(24))
+        let viewModel = makeViewModel(fake: fake, application: application)
+        viewModel.load()
+
+        #expect(viewModel.nextNode == nil)
+    }
+
+    @Test("an application without a deadline has no node")
+    func applicationWithoutDeadlineHasNoNode() {
         let fake = FakeApplicationRepository()
         let application = makeApplication(
             status: .interview,
-            deadline: now.addingTimeInterval(-60),
-            rounds: [
-                round(id: 1, at: now.addingTimeInterval(-3_600), label: "过去"),
-                round(id: 2, at: hoursLater(1), result: .passed, label: "通过"),
-                round(id: 3, at: hoursLater(2), result: .failed, label: "未通过"),
-                round(id: 4, at: hoursLater(3), result: .cancelled, label: "取消"),
-            ]
+            deadline: nil,
+            rounds: [round(id: 1, at: hoursLater(24), label: "一面")]
         )
         let viewModel = makeViewModel(fake: fake, application: application)
         viewModel.load()
@@ -332,54 +370,20 @@ struct ApplicationDetailViewModelTests {
         #expect(viewModel.nextNode == nil)
     }
 
-    @Test("a pending round exactly at now is still upcoming")
-    func nextNodeIncludesRoundStartingNow() {
+    @Test("a past deadline is still shown as an overdue node")
+    func pastDeadlineStaysVisibleAndOverdue() {
+        let deadline = past
+        let application = makeApplication(status: .interview, deadline: deadline)
         let fake = FakeApplicationRepository()
-        let application = makeApplication(
-            status: .oa,
-            rounds: [round(id: 1, at: now, label: "现在")]
-        )
         let viewModel = makeViewModel(fake: fake, application: application)
         viewModel.load()
 
-        #expect(viewModel.nextNode?.kind == .interview)
-        #expect(viewModel.nextNode?.date == now)
-        #expect(viewModel.nextNode?.roundLabel == "现在")
+        #expect(viewModel.nextNode?.date == deadline)
+        #expect(viewModel.nextNode?.isOverdue == true)
+        #expect(viewModel.nextNode?.title == "截止")
     }
 
-    @Test("an identical instant prefers the deadline and round ties break by id")
-    func nextNodeTieBreaks() {
-        let instant = hoursLater(24)
-
-        let deadlineTieFake = FakeApplicationRepository()
-        let deadlineTie = makeViewModel(
-            fake: deadlineTieFake,
-            application: makeApplication(
-                status: .interview,
-                deadline: instant,
-                rounds: [round(id: 5, at: instant, label: "面试")]
-            )
-        )
-        deadlineTie.load()
-        #expect(deadlineTie.nextNode?.kind == .deadline)
-        #expect(deadlineTie.nextNode?.roundID == nil)
-
-        let roundTieFake = FakeApplicationRepository()
-        let roundTie = makeViewModel(
-            fake: roundTieFake,
-            application: makeApplication(
-                status: .interview,
-                rounds: [
-                    round(id: 20, at: instant, label: "较晚 id"),
-                    round(id: 10, at: instant, label: "较早 id"),
-                ]
-            )
-        )
-        roundTie.load()
-        #expect(roundTie.nextNode?.kind == .interview)
-        #expect(roundTie.nextNode?.roundID == fixedID(10))
-        #expect(roundTie.nextNode?.roundLabel == "较早 id")
-    }
+    // MARK: - Interview rounds
 
     @Test(
         "adding a future round asks about marking the application as interviewing for applied and oa",
