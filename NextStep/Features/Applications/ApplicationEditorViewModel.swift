@@ -32,6 +32,9 @@ final class ApplicationEditorViewModel {
     private let dateProvider: any DateProvider
     private let mode: Mode
     private let initialDraft: Draft?
+    /// The deadline selection the form opened with, composed the same way as `deadline` so the
+    /// comparison ignores stray seconds. Create mode opens without one.
+    private var initialDeadline: Date?
 
     var companyName = ""
     var roleTitle = ""
@@ -58,6 +61,7 @@ final class ApplicationEditorViewModel {
         self.dateProvider = dateProvider
         self.mode = .create
         self.initialDraft = nil
+        self.initialDeadline = nil
         self.statusDate = dateProvider.now
         let today = dateProvider.calendar.startOfDay(for: dateProvider.now)
         self.deadlineDay = today
@@ -111,6 +115,7 @@ final class ApplicationEditorViewModel {
             notesText: application.notes ?? "",
             deadline: application.deadline
         )
+        self.initialDeadline = self.deadline
     }
 
     var isEditing: Bool {
@@ -144,6 +149,44 @@ final class ApplicationEditorViewModel {
         }
         components.second = 0
         return calendar.date(from: components)
+    }
+
+    /// True when the composed deadline differs from the one the form opened with. The inline hints
+    /// only appear after such an edit: the default selection is noise, not a warning. Returning to
+    /// the original value turns them off again.
+    var hasEditedDeadlineSelection: Bool {
+        deadline != initialDeadline
+    }
+
+    /// ADR-0005 decision 8: the chosen instant is already past, so the UI will mark it 「已过」.
+    /// A hint only — it never blocks the save.
+    var pastDeadlineHint: String? {
+        guard let hintedDeadline, hintedDeadline < currentDate else { return nil }
+        return "这个时刻已经过去了，会显示为已过"
+    }
+
+    /// ADR-0005 decision 10: a round already sits on the chosen instant but the status was never
+    /// advanced, so the status flow (and its `StatusChange` history) is still owed. The status is
+    /// read here only to decide whether to remind — never to derive the node's title.
+    var staleStatusHint: String? {
+        guard let hintedDeadline, let application = editingApplication else { return nil }
+        guard application.status == .applied || application.status == .oa else { return nil }
+        guard application.interviewRounds.contains(where: { $0.scheduledAt == hintedDeadline }) else {
+            return nil
+        }
+        let instant = ApplicationDateFormatting.monthDayTime(hintedDeadline)
+        return "\(instant) 这一轮面试，状态仍是 \(application.status.displayName)——到详情页改成面试"
+    }
+
+    /// Both hints share this gate: an edited selection that still has a deadline.
+    private var hintedDeadline: Date? {
+        guard hasEditedDeadlineSelection else { return nil }
+        return deadline
+    }
+
+    private var editingApplication: Application? {
+        if case .edit(let application) = mode { return application }
+        return nil
     }
 
     /// True when dismissing the form would lose user input.
