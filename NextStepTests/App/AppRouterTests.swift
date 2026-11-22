@@ -14,7 +14,7 @@ struct AppRouterTests {
     @Test func tabsUseTheAgreedChineseTitles() {
         #expect(AppTab.allCases.map(\.title) == ["概览", "申请", "发现", "我的"])
         #expect(ApplicationListFilter.allCases.map(\.displayName) == [
-            "全部", "进行中", "临近截止", "Offer", "已结束",
+            "全部", "进行中", "接下来 7 天", "Offer", "已结束",
         ])
     }
 
@@ -35,10 +35,10 @@ struct AppRouterTests {
     @Test func openingTheApplicationsListCarriesTheFilter() {
         let router = AppRouter()
 
-        router.openApplications(filter: .dueSoon)
+        router.openApplications(filter: .upcoming)
 
         #expect(router.selectedTab == .applications)
-        #expect(router.takePendingRoute(for: .applications) == .applicationsList(filter: .dueSoon))
+        #expect(router.takePendingRoute(for: .applications) == .applicationsList(filter: .upcoming))
     }
 
     @Test func switchingToDiscoverAndProfileQueuesTheirTabRoutes() {

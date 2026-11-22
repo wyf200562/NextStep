@@ -4,6 +4,18 @@ import Testing
 
 @Suite("Application list")
 struct ApplicationListBuilderTests {
+    private struct RoundSpec {
+        let date: Date
+        let result: InterviewResult
+        let label: String?
+
+        init(_ date: Date, _ result: InterviewResult = .pending, label: String? = nil) {
+            self.date = date
+            self.result = result
+            self.label = label
+        }
+    }
+
     private let calendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
@@ -29,7 +41,7 @@ struct ApplicationListBuilderTests {
         status: ApplicationStatus = .applied,
         lastModifiedAt: Date? = nil,
         deadline: Date? = nil,
-        rounds: [(date: Date, result: InterviewResult)] = []
+        rounds: [RoundSpec] = []
     ) -> Application {
         let createdAt = day(0, hour: 8)
         let application = Application(
@@ -42,7 +54,7 @@ struct ApplicationListBuilderTests {
             deadline: deadline
         )
         application.interviewRounds = rounds.map {
-            InterviewRound(scheduledAt: $0.date, format: .video, result: $0.result)
+            InterviewRound(scheduledAt: $0.date, format: .video, result: $0.result, label: $0.label)
         }
         return application
     }
@@ -84,95 +96,114 @@ struct ApplicationListBuilderTests {
         let endedIDs = Set(snapshot(.ended, applications).rows.map(\.id))
         #expect(endedIDs == Set([fixedID(6), fixedID(7)])) // rejected, withdrawn
 
-        #expect(snapshot(.dueSoon, applications).rows.isEmpty)
+        #expect(snapshot(.upcoming, applications).rows.isEmpty)
     }
 
-    @Test("dueSoon covers today through today plus seven calendar days and excludes terminal statuses")
-    func dueSoonCoversTheSevenDayWindow() {
+    @Test("upcoming keeps only nodes from now to midnight on day eight and excludes terminal statuses")
+    func upcomingKeepsOnlyNodesInsideTheWeek() {
         let now = day(0, hour: 10)
-        let todayStart = day(0, hour: 0)
-        let lastDayOfWindow = day(7, hour: 23, minute: 59)
-        let dayAfterWindow = day(8, hour: 0)
 
         let applications = [
-            application(id: fixedID(1), deadline: todayStart),
-            application(id: fixedID(2), deadline: lastDayOfWindow),
-            application(id: fixedID(3), deadline: dayAfterWindow),
-            application(id: fixedID(4), deadline: day(-1, hour: 23, minute: 59)),
-            application(id: fixedID(5), rounds: [(day(3, hour: 14), .pending)]),
-            application(id: fixedID(6), rounds: [(day(3, hour: 14), .passed)]),
-            application(id: fixedID(7), status: .offer, deadline: day(1, hour: 9)),
-            application(id: fixedID(8), status: .rejected, deadline: day(1, hour: 9)),
-            application(id: fixedID(9), status: .withdrawn, rounds: [(day(1, hour: 9), .pending)]),
+            application(id: fixedID(1), deadline: now), // exactly now: inclusive
+            application(id: fixedID(2), deadline: day(0, hour: 9, minute: 59)), // already overdue
+            application(id: fixedID(3), deadline: day(7, hour: 23, minute: 59)), // last minute of the week
+            application(id: fixedID(4), deadline: day(8, hour: 0)), // day-eight midnight: excluded
+            application(id: fixedID(5), rounds: [RoundSpec(day(3, hour: 14))]), // rounds no longer count
+            application(id: fixedID(6), status: .offer, deadline: day(1, hour: 9)),
+            application(id: fixedID(7), status: .rejected, deadline: day(1, hour: 9)),
+            application(id: fixedID(8), status: .withdrawn, deadline: day(1, hour: 9)),
         ]
 
-        let ids = Set(snapshot(.dueSoon, applications, now: now).rows.map(\.id))
+        let ids = Set(snapshot(.upcoming, applications, now: now).rows.map(\.id))
 
-        #expect(ids == Set([
-            fixedID(1), // today 00:00
-            fixedID(2), // today + 7, last minute
-            fixedID(5), // pending interview inside the window
-            fixedID(7), // offer deadline still counts
-        ]))
+        #expect(ids == Set([fixedID(1), fixedID(3), fixedID(6)]))
     }
 
-    @Test("all, active, and dueSoon order by the nearest upcoming node, then last modification and id")
-    func upcomingOrderingUsesNearestNodeThenLastModifiedAndID() {
+    @Test("rows order upcoming nodes first, then overdue nodes most recent first, then the rest by last update")
+    func rowsOrderUpcomingThenOverdueThenTheRest() {
         let now = day(0, hour: 10)
 
-        let applicationWithDeadlineLater = application(
+        let rows = snapshot(
+            .all,
+            [
+                application(id: fixedID(1), lastModifiedAt: day(0, hour: 8), deadline: day(2, hour: 9)),
+                application(id: fixedID(2), lastModifiedAt: day(0, hour: 8), deadline: day(3, hour: 9)),
+                application(id: fixedID(3), lastModifiedAt: day(0, hour: 8), deadline: day(0, hour: 9)),
+                application(
+                    id: fixedID(4), lastModifiedAt: day(0, hour: 8),
+                    deadline: day(0, hour: 9, minute: 30)
+                ),
+                application(id: fixedID(5), lastModifiedAt: day(0, hour: 9, minute: 30)),
+                application(id: fixedID(6), lastModifiedAt: day(-1, hour: 9)),
+            ],
+            now: now
+        ).rows
+
+        #expect(rows.map(\.id) == [fixedID(1), fixedID(2), fixedID(4), fixedID(3), fixedID(5), fixedID(6)])
+        #expect(rows[0].node?.isOverdue == false)
+        #expect(rows[0].node?.title == "截止")
+        #expect(rows[2].node?.isOverdue == true)
+        #expect(rows[4].node == nil)
+        #expect(rows[5].node == nil)
+    }
+
+    @Test("rows with the same node instant fall back to application id")
+    func equalNodeInstantsFallBackToApplicationID() {
+        let now = day(0, hour: 10)
+        let upcomingInstant = day(3, hour: 9)
+        let overdueInstant = day(0, hour: 9)
+
+        let rows = snapshot(
+            .all,
+            [
+                application(id: fixedID(4), lastModifiedAt: now, deadline: overdueInstant),
+                application(id: fixedID(2), lastModifiedAt: now, deadline: upcomingInstant),
+                application(id: fixedID(3), lastModifiedAt: now, deadline: overdueInstant),
+                application(id: fixedID(1), lastModifiedAt: now, deadline: upcomingInstant),
+            ],
+            now: now
+        ).rows
+
+        #expect(rows.map(\.id) == [fixedID(1), fixedID(2), fixedID(3), fixedID(4)])
+    }
+
+    @Test("terminal applications have no node and sort with the node-less group")
+    func terminalApplicationsHaveNoNode() {
+        let now = day(0, hour: 10)
+        let applications = [
+            application(
+                id: fixedID(1), status: .rejected,
+                lastModifiedAt: day(0, hour: 9, minute: 30), deadline: day(1, hour: 9)
+            ),
+            application(id: fixedID(2), lastModifiedAt: day(0, hour: 8)),
+            application(
+                id: fixedID(3), status: .withdrawn,
+                lastModifiedAt: day(0, hour: 9, minute: 45), deadline: day(1, hour: 9)
+            ),
+            application(id: fixedID(4), lastModifiedAt: day(0, hour: 8), deadline: day(2, hour: 9)),
+        ]
+
+        let rows = snapshot(.all, applications, now: now).rows
+
+        #expect(rows.map(\.id) == [fixedID(4), fixedID(3), fixedID(1), fixedID(2)])
+        #expect(rows[1].node == nil)
+        #expect(rows[2].node == nil)
+        #expect(snapshot(.upcoming, applications, now: now).rows.map(\.id) == [fixedID(4)])
+    }
+
+    @Test("a round on the deadline instant supplies the row's node title")
+    func roundOnTheDeadlineInstantSuppliesTheRowTitle() {
+        let now = day(0, hour: 10)
+        let deadline = day(2, hour: 14)
+        let application = application(
             id: fixedID(1),
-            lastModifiedAt: day(0, hour: 9),
-            deadline: day(2, hour: 9)
-        )
-        let applicationWithInterviewSooner = application(
-            id: fixedID(2),
-            lastModifiedAt: day(0, hour: 8),
-            rounds: [(day(1, hour: 9), .pending)]
-        )
-        let applicationWithoutUpcomingNode = application(
-            id: fixedID(3),
-            lastModifiedAt: day(0, hour: 9, minute: 30)
-        )
-        let applicationWithPassedDeadline = application(
-            id: fixedID(4),
-            lastModifiedAt: day(0, hour: 7),
-            deadline: day(0, hour: 9)
+            deadline: deadline,
+            rounds: [RoundSpec(deadline, label: "终面")]
         )
 
-        let rows = snapshot(
-            .all,
-            [
-                applicationWithDeadlineLater,
-                applicationWithInterviewSooner,
-                applicationWithoutUpcomingNode,
-                applicationWithPassedDeadline,
-            ],
-            now: now
-        ).rows
+        let row = snapshot(.all, [application], now: now).rows[0]
 
-        #expect(rows.map(\.id) == [fixedID(2), fixedID(1), fixedID(3), fixedID(4)])
-        #expect(rows[0].nearestNode?.kind == .interview)
-        #expect(rows[1].nearestNode?.kind == .deadline)
-        #expect(rows[2].nearestNode == nil)
-        #expect(rows[3].nearestNode == nil)
-    }
-
-    @Test("rows with the same nearest node fall back to application id")
-    func equalNearestNodesFallBackToApplicationID() {
-        let now = day(0, hour: 10)
-        let deadline = day(3, hour: 9)
-
-        let rows = snapshot(
-            .all,
-            [
-                application(id: fixedID(2), lastModifiedAt: now, deadline: deadline),
-                application(id: fixedID(1), lastModifiedAt: now, deadline: deadline),
-            ],
-            now: now
-        ).rows
-
-        #expect(rows.map(\.id) == [fixedID(1), fixedID(2)])
+        #expect(row.node == ApplicationNode(date: deadline, title: "终面", isOverdue: false))
     }
 
     @Test("offer and ended order by last modification time and then id")
@@ -199,44 +230,6 @@ struct ApplicationListBuilderTests {
 
         #expect(snapshot(.offer, applications, now: now).rows.map(\.id) == [fixedID(3), fixedID(4)])
         #expect(snapshot(.ended, applications, now: now).rows.map(\.id) == [fixedID(1), fixedID(2)])
-    }
-
-    @Test("the nearest node ignores finished rounds and prefers a deadline on an identical instant")
-    func nearestNodeSelectionRules() {
-        let now = day(0, hour: 10)
-        let sharedInstant = day(1, hour: 9)
-
-        let deadlineAndLaterInterview = application(
-            id: fixedID(1),
-            deadline: sharedInstant,
-            rounds: [(day(2, hour: 9), .pending)]
-        )
-        let deadlineAndEarlierInterview = application(
-            id: fixedID(2),
-            deadline: day(2, hour: 9),
-            rounds: [(day(1, hour: 9), .pending)]
-        )
-        let deadHeat = application(
-            id: fixedID(3),
-            deadline: sharedInstant,
-            rounds: [(sharedInstant, .pending)]
-        )
-        let onlyFinishedRound = application(
-            id: fixedID(4),
-            rounds: [(day(1, hour: 9), .passed)]
-        )
-
-        let rows = snapshot(
-            .all,
-            [deadlineAndLaterInterview, deadlineAndEarlierInterview, deadHeat, onlyFinishedRound],
-            now: now
-        ).rows
-
-        let byID = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
-        #expect(byID[fixedID(1)]?.nearestNode?.kind == .deadline)
-        #expect(byID[fixedID(2)]?.nearestNode?.kind == .interview)
-        #expect(byID[fixedID(3)]?.nearestNode?.kind == .deadline)
-        #expect(byID[fixedID(4)]?.nearestNode == nil)
     }
 
     @Test("the summary counts every application and every active application")

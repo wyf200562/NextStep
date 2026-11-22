@@ -161,7 +161,7 @@ struct OverviewView: View {
                 countButton(
                     snapshot.dueSoonCount,
                     label: "7 天内截止",
-                    filter: .dueSoon,
+                    filter: .upcoming,
                     highlightsValue: snapshot.dueSoonCount > 0
                 )
                 countButton(snapshot.offerCount, label: "Offer", filter: .offer, highlightsValue: false)
