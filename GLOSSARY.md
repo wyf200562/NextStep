@@ -42,12 +42,16 @@ _Avoid_: SearchParams, JobFilter
 用户针对一个岗位建立的一条投递记录，承载状态、状态历史、截止日期、备注，并可选关联 JobPosting。
 _Avoid_: JobApplication, 投递（作为实体名时）
 
-**Deadline（关键截止）**:
-Application 的下一个关键节点时间（投递、OA、offer 回复等）；面试时间不属于 Deadline，记录在 InterviewRound。
-_Avoid_: DueDate, ApplyBy（比 Deadline 更窄）
+**Deadline（下一个节点）**:
+Application 当前的下一个节点时刻，一个申请只有一个。投递截止、OA 截止、面试、offer 回复截止都占这一个位置，节点过去后由用户推进到下一个。它由用户手动维护，因为这些时刻多由邮件、社交软件或招聘软件告知，无法自动获取。
+_Avoid_: DueDate, ApplyBy（比 Deadline 更窄）, NextNode（它就是 Deadline，不是另一个概念）
+
+**Overdue（已过）**:
+Deadline 早于此刻的状态，表示用户该把它推进到下一个节点了。它不是「即将到来」的一部分，只在概览作为待更新的提示出现。
+_Avoid_: isPast（实现名）, Expired（易与 offer 过期混淆）
 
 **InterviewRound（面试轮次）**:
-Application 下的一轮面试记录，包含日期、形式、备注和结果。
+Application 下的一轮面试记录，包含日期、形式、备注和结果。轮次日期是那场面试的历史记录与排序依据，不参与「即将到来」的判定——「接下来」只由 Deadline 表示。
 _Avoid_: Interview
 
 **StatusChange（状态变更）**:
