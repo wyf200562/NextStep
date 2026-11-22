@@ -106,7 +106,7 @@ enum DashboardBuilder {
             upcomingEvents: events.filter { $0.date >= tomorrowStart },
             activeCount: applications.filter { $0.status.isActive }.count,
             dueSoonCount: applications.filter {
-                ApplicationListBuilder.isDueSoon($0, now: now, calendar: calendar)
+                ApplicationDeadlineWindow.isWithinUpcomingWeek($0, now: now, calendar: calendar)
             }.count,
             offerCount: applications.filter { $0.status == .offer }.count,
             recentApplications: Array(applications.sorted(by: recentOrder).prefix(5))

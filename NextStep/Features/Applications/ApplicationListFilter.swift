@@ -4,7 +4,7 @@ import Foundation
 nonisolated enum ApplicationListFilter: String, CaseIterable, Identifiable, Hashable {
     case all = "all"
     case active = "active"
-    case dueSoon = "dueSoon"
+    case upcoming = "upcoming"
     case offer = "offer"
     case ended = "ended"
 
@@ -14,7 +14,7 @@ nonisolated enum ApplicationListFilter: String, CaseIterable, Identifiable, Hash
         switch self {
         case .all: "全部"
         case .active: "进行中"
-        case .dueSoon: "临近截止"
+        case .upcoming: "接下来 7 天"
         case .offer: "Offer"
         case .ended: "已结束"
         }

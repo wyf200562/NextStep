@@ -4,16 +4,16 @@ import Foundation
 ///
 /// Applications are fetched with `@Query`; this snapshot applies the filter, ordering, and summary
 /// rules so the view stays free of business logic. `now` and `calendar` are injected to keep the
-/// seven-day window and upcoming-node ordering deterministic in tests.
+/// upcoming window and node ordering deterministic in tests.
 struct ApplicationListSnapshot {
     struct Row: Identifiable {
         let application: Application
-        let nearestNode: NearestNode?
+        /// The single node for this row, derived from the deadline (ADR-0005). nil when there is
+        /// nothing to show — no deadline, or an ended status.
+        let node: ApplicationNode?
 
         var id: UUID { application.id }
     }
-
-    typealias NearestNode = ApplicationNextNode
 
     let rows: [Row]
     let totalCount: Int
@@ -32,13 +32,13 @@ enum ApplicationListBuilder {
             .map {
                 ApplicationListSnapshot.Row(
                     application: $0,
-                    nearestNode: ApplicationNextNode.nearest(for: $0, at: now)
+                    node: ApplicationNodeCopy.node(for: $0, now: now)
                 )
             }
 
         let ordered: [ApplicationListSnapshot.Row]
         switch filter {
-        case .all, .active, .dueSoon:
+        case .all, .active, .upcoming:
             ordered = rows.sorted(by: upcomingFirst)
         case .offer, .ended:
             ordered = rows.sorted(by: lastModifiedFirst)
@@ -64,8 +64,8 @@ enum ApplicationListBuilder {
             true
         case .active:
             application.status.isActive
-        case .dueSoon:
-            isDueSoon(application, now: now, calendar: calendar)
+        case .upcoming:
+            ApplicationDeadlineWindow.isWithinUpcomingWeek(application, now: now, calendar: calendar)
         case .offer:
             application.status == .offer
         case .ended:
@@ -73,42 +73,21 @@ enum ApplicationListBuilder {
         }
     }
 
-    /// The shared 7-day due-soon rule: a non-terminal application with a deadline or a pending
-    /// interview inside today 00:00–today+7 23:59. The overview's 7-day count reuses it so the two
-    /// screens cannot disagree.
-    static func isDueSoon(
-        _ application: Application,
-        now: Date,
-        calendar: Calendar
-    ) -> Bool {
-        guard !application.status.isEnded else { return false }
-
-        let today = calendar.startOfDay(for: now)
-        guard let windowEnd = calendar.date(byAdding: .day, value: 8, to: today) else {
-            return false
-        }
-        func isInsideWindow(_ date: Date) -> Bool {
-            date >= today && date < windowEnd
-        }
-
-        if let deadline = application.deadline, isInsideWindow(deadline) {
-            return true
-        }
-        return application.interviewRounds.contains {
-            $0.result == .pending && isInsideWindow($0.scheduledAt)
-        }
-    }
-
     // MARK: - Ordering
 
+    /// Rows with a node come first: upcoming nodes by date ascending, then overdue nodes by date
+    /// descending (most recently missed first). Node-less rows follow, latest modification first.
     private static func upcomingFirst(
         _ lhs: ApplicationListSnapshot.Row,
         _ rhs: ApplicationListSnapshot.Row
     ) -> Bool {
-        switch (lhs.nearestNode, rhs.nearestNode) {
+        switch (lhs.node, rhs.node) {
         case let (left?, right?):
+            if left.isOverdue != right.isOverdue {
+                return !left.isOverdue
+            }
             if left.date != right.date {
-                return left.date < right.date
+                return left.isOverdue ? left.date > right.date : left.date < right.date
             }
             return lhs.application.id.uuidString < rhs.application.id.uuidString
         case (_?, nil):
