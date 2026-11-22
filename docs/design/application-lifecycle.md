@@ -46,7 +46,7 @@
 - **接下来 7 天**：明天起 7 天内的事件。
 - 终态 rejected / withdrawn 不产生事件；offer 的答复截止仍计入。
 - 两个来源合并后按时间升序；同时间按 `application.id`，deadline 先于 interview，最后按轮次 `id`。
-- **计数**：进行中 / 7 天内截止 / Offer。`dueSoonCount` 按去重后的申请数计算，不是事件数。
+- **计数**：进行中 / 接下来 7 天 / Offer。`upcomingCount` 按去重后的申请数计算，不是事件数。
 - **最近更新**：全部状态按 `lastModifiedAt` 降序取前 5，同时间 `id` 兜底。
 
 首屏顺序固定为：事件 → 一行计数 → 最近更新；没有事件时显示轻量提示，不用图表挤占注意力。
