@@ -430,6 +430,30 @@ struct ApplicationEditorViewModelTests {
         #expect(viewModel.pastDeadlineHint == "这个时刻已经过去了，会显示为已过")
     }
 
+    @Test("an ended application gets no past hint, because it shows no node at all")
+    func endedApplicationGetsNoPastHint() throws {
+        let chosenInstant = try #require(calendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 1, hour: 14, minute: 30)
+        ))
+
+        for status in [ApplicationStatus.rejected, .withdrawn] {
+            let viewModel = makeEditViewModel(
+                fake: FakeApplicationRepository(),
+                application: makeEditingApplication(status: status)
+            )
+            chooseDeadline(chosenInstant, on: viewModel)
+
+            #expect(viewModel.hasEditedDeadlineSelection)
+            #expect(viewModel.pastDeadlineHint == nil)
+        }
+
+        let creating = makeViewModel(fake: FakeApplicationRepository())
+        creating.initialStatus = .withdrawn
+        chooseDeadline(chosenInstant, on: creating)
+
+        #expect(creating.pastDeadlineHint == nil)
+    }
+
     @Test("returning the selection to its original value hides the hint again")
     func revertingTheSelectionHidesTheHint() throws {
         let viewModel = makeEditViewModel(

@@ -159,9 +159,13 @@ final class ApplicationEditorViewModel {
     }
 
     /// ADR-0005 decision 8: the chosen instant is already past, so the UI will mark it 「已过」.
-    /// A hint only — it never blocks the save.
+    /// A hint only — it never blocks the save. Ended statuses are exempt: they show no node at all
+    /// (spec 「终态没有节点」), so promising 「已过」 there would be a lie.
     var pastDeadlineHint: String? {
-        guard let hintedDeadline, hintedDeadline < currentDate else { return nil }
+        guard let hintedDeadline,
+              ApplicationDeadlineWindow.isPast(hintedDeadline, now: currentDate),
+              !draftStatus.isEnded
+        else { return nil }
         return "这个时刻已经过去了，会显示为已过"
     }
 
@@ -171,7 +175,7 @@ final class ApplicationEditorViewModel {
     var staleStatusHint: String? {
         guard let hintedDeadline, let application = editingApplication else { return nil }
         guard application.status == .applied || application.status == .oa else { return nil }
-        guard application.interviewRounds.contains(where: { $0.scheduledAt == hintedDeadline }) else {
+        guard ApplicationNodeCopy.round(at: hintedDeadline, of: application) != nil else {
             return nil
         }
         let instant = ApplicationDateFormatting.monthDayTime(hintedDeadline)
@@ -187,6 +191,13 @@ final class ApplicationEditorViewModel {
     private var editingApplication: Application? {
         if case .edit(let application) = mode { return application }
         return nil
+    }
+
+    /// The status a save would leave behind: the draft's in create mode, the application's own in
+    /// edit mode (status is not editable there).
+    private var draftStatus: ApplicationStatus {
+        if case .edit(let application) = mode { return application.status }
+        return initialStatus
     }
 
     /// True when dismissing the form would lose user input.

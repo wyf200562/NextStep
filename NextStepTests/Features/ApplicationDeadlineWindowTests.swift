@@ -53,6 +53,16 @@ struct ApplicationDeadlineWindowTests {
         #expect(ApplicationDeadlineWindow.isWithinUpcomingWeek(application, now: now, calendar: calendar))
     }
 
+    @Test("a deadline is overdue the moment its minute starts, not at the minute's end")
+    func deadlineIsOverdueAtItsExactInstant() {
+        let deadline = day(0, hour: 10)
+        let now = deadline.addingTimeInterval(30)
+
+        #expect(ApplicationDeadlineWindow.isPast(deadline, now: now))
+        #expect(ApplicationDeadlineWindow.isOverdue(application(deadline: deadline), now: now))
+        #expect(!ApplicationDeadlineWindow.isUpcoming(application(deadline: deadline), now: now))
+    }
+
     @Test("the window runs from now to midnight on day eight")
     func windowRunsFromNowToMidnightOnDayEight() {
         let now = day(0, hour: 10)

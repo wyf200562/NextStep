@@ -71,9 +71,9 @@ enum DashboardBuilder {
             todayEvents: events.filter { $0.date < tomorrowStart },
             upcomingEvents: events.filter { $0.date >= tomorrowStart },
             activeCount: applications.filter { $0.status.isActive }.count,
-            upcomingCount: applications.filter {
-                ApplicationDeadlineWindow.isWithinUpcomingWeek($0, now: now, calendar: calendar)
-            }.count,
+            // The agenda above already applied this predicate once; counting the events keeps the
+            // number and the rows from ever disagreeing.
+            upcomingCount: events.count,
             overdueCount: applications.filter {
                 ApplicationDeadlineWindow.isOverdue($0, now: now)
             }.count,

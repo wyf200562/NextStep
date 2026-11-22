@@ -322,7 +322,7 @@ struct ApplicationDetailView: View {
         let isPast = round.scheduledAt < viewModel.currentDate
         return VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
-                Text(roundTitle(round))
+                Text(ApplicationNodeCopy.title(forRound: round))
                     .font(.subheadline.weight(.semibold))
                 Spacer(minLength: 8)
                 Text(round.result.displayName)
@@ -343,13 +343,6 @@ struct ApplicationDetailView: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityHint("编辑这轮面试")
-    }
-
-    private func roundTitle(_ round: InterviewRound) -> String {
-        if let label = round.label, !label.isEmpty {
-            return label
-        }
-        return "面试"
     }
 
     private func roundResultColor(_ result: InterviewResult) -> Color {

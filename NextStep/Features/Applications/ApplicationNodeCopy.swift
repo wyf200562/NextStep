@@ -27,12 +27,23 @@ enum ApplicationNodeCopy {
     /// or 「面试」 when the label is blank; `result` is never filtered), otherwise 「截止」.
     /// Never reads `status` — status goes stale and would turn staleness into a wrong sentence.
     static func title(forNodeAt instant: Date, of application: Application) -> String {
-        let round = application.interviewRounds
-            .filter { $0.scheduledAt == instant }
-            .min { $0.id.uuidString < $1.id.uuidString }
+        guard let round = round(at: instant, of: application) else { return "截止" }
+        return title(forRound: round)
+    }
 
-        guard let round else { return "截止" }
+    /// A round's own name: its `label`, or 「面试」 when the label is blank. Shared with the round
+    /// history rows so the rule lives once.
+    static func title(forRound round: InterviewRound) -> String {
         guard let label = round.label, !label.isEmpty else { return "面试" }
         return label
+    }
+
+    /// The round sitting exactly on `instant`, if any. The single lookup for both the node title and
+    /// the editor's stale-status hint; when several share the instant the lowest id wins, so the
+    /// answer never depends on the collection's order.
+    static func round(at instant: Date, of application: Application) -> InterviewRound? {
+        application.interviewRounds
+            .filter { $0.scheduledAt == instant }
+            .min { $0.id.uuidString < $1.id.uuidString }
     }
 }

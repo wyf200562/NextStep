@@ -94,6 +94,35 @@ struct ApplicationNodeCopyTests {
         }
     }
 
+    @Test("two rounds on one instant resolve to the lower id, whatever the array order")
+    func roundsOnOneInstantResolveByID() {
+        let instant = day(3, hour: 14)
+        let first = InterviewRound(scheduledAt: instant, format: .video, label: "一面")
+        let second = InterviewRound(scheduledAt: instant, format: .video, label: "二面")
+        let ordered = [first, second].sorted { $0.id.uuidString < $1.id.uuidString }
+        let application = application(deadline: instant)
+        application.interviewRounds = [ordered[1], ordered[0]]
+
+        #expect(ApplicationNodeCopy.round(at: instant, of: application)?.id == ordered[0].id)
+        #expect(ApplicationNodeCopy.title(forNodeAt: instant, of: application) == ordered[0].label)
+    }
+
+    @Test("the round title seam names a round on its own")
+    func roundTitleSeamNamesARound() {
+        let instant = day(3, hour: 14)
+
+        #expect(ApplicationNodeCopy.title(forRound: InterviewRound(
+            scheduledAt: instant,
+            format: .video,
+            label: "终面"
+        )) == "终面")
+        #expect(ApplicationNodeCopy.title(forRound: InterviewRound(
+            scheduledAt: instant,
+            format: .video,
+            label: ""
+        )) == "面试")
+    }
+
     @Test("a future round without a deadline produces no node")
     func futureRoundWithoutDeadlineProducesNoNode() {
         let now = day(0, hour: 10)
