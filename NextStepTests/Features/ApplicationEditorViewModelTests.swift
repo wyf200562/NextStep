@@ -223,9 +223,10 @@ struct ApplicationEditorViewModelTests {
 
     private func makeEditingApplication(
         status: ApplicationStatus = .applied,
-        deadline: Date? = nil
+        deadline: Date? = nil,
+        roundsAt roundInstants: [Date] = []
     ) -> Application {
-        Application(
+        let application = Application(
             id: UUID(uuidString: "00000000-0000-0000-0000-000000000013")!,
             companyName: "星尘科技",
             roleTitle: "iOS 开发实习生",
@@ -239,6 +240,10 @@ struct ApplicationEditorViewModelTests {
             jobURL: URL(string: "https://example.com/jobs/42"),
             location: "上海"
         )
+        application.interviewRounds = roundInstants.map {
+            InterviewRound(scheduledAt: $0, format: .video)
+        }
+        return application
     }
 
     private func makeEditViewModel(
@@ -382,5 +387,220 @@ struct ApplicationEditorViewModelTests {
         #expect(viewModel.saveErrorMessage == "保存失败，请重试")
         #expect(viewModel.savedApplicationID == nil)
         #expect(fake.updateCalls.count == 1)
+    }
+
+    // MARK: - Inline deadline hints
+
+    @Test("a freshly opened form has no deadline hints")
+    func untouchedSelectionShowsNoHints() {
+        let create = makeViewModel(fake: FakeApplicationRepository())
+        #expect(create.deadline == nil)
+        #expect(create.hasEditedDeadlineSelection == false)
+        #expect(create.pastDeadlineHint == nil)
+        #expect(create.staleStatusHint == nil)
+
+        let editing = makeEditViewModel(
+            fake: FakeApplicationRepository(),
+            application: makeEditingApplication()
+        )
+        #expect(editing.hasEditedDeadlineSelection == false)
+        #expect(editing.pastDeadlineHint == nil)
+        #expect(editing.staleStatusHint == nil)
+    }
+
+    @Test("a chosen instant already past shows the past hint, a later one does not")
+    func aPastChosenInstantShowsThePastHint() throws {
+        let viewModel = makeViewModel(fake: FakeApplicationRepository())
+        viewModel.hasDeadline = true
+        viewModel.includesDeadlineTime = true
+        viewModel.deadlineDay = try #require(calendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 20)
+        ))
+        viewModel.deadlineTime = try #require(calendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 20, hour: 14, minute: 30)
+        ))
+
+        #expect(viewModel.hasEditedDeadlineSelection)
+        #expect(viewModel.pastDeadlineHint == nil)
+
+        viewModel.deadlineDay = try #require(calendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 1)
+        ))
+
+        #expect(viewModel.pastDeadlineHint == "这个时刻已经过去了，会显示为已过")
+    }
+
+    @Test("an ended application gets no past hint, because it shows no node at all")
+    func endedApplicationGetsNoPastHint() throws {
+        let chosenInstant = try #require(calendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 1, hour: 14, minute: 30)
+        ))
+
+        for status in [ApplicationStatus.rejected, .withdrawn] {
+            let viewModel = makeEditViewModel(
+                fake: FakeApplicationRepository(),
+                application: makeEditingApplication(status: status)
+            )
+            chooseDeadline(chosenInstant, on: viewModel)
+
+            #expect(viewModel.hasEditedDeadlineSelection)
+            #expect(viewModel.pastDeadlineHint == nil)
+        }
+
+        let creating = makeViewModel(fake: FakeApplicationRepository())
+        creating.initialStatus = .withdrawn
+        chooseDeadline(chosenInstant, on: creating)
+
+        #expect(creating.pastDeadlineHint == nil)
+    }
+
+    @Test("returning the selection to its original value hides the hint again")
+    func revertingTheSelectionHidesTheHint() throws {
+        let viewModel = makeEditViewModel(
+            fake: FakeApplicationRepository(),
+            application: makeEditingApplication()
+        )
+
+        viewModel.deadlineDay = try #require(calendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 1)
+        ))
+        #expect(viewModel.hasEditedDeadlineSelection)
+        #expect(viewModel.pastDeadlineHint == "这个时刻已经过去了，会显示为已过")
+
+        viewModel.deadlineDay = try #require(calendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 20)
+        ))
+        #expect(viewModel.hasEditedDeadlineSelection == false)
+        #expect(viewModel.pastDeadlineHint == nil)
+    }
+
+    private func chooseDeadline(_ instant: Date, on viewModel: ApplicationEditorViewModel) {
+        viewModel.hasDeadline = true
+        viewModel.deadlineDay = calendar.startOfDay(for: instant)
+        viewModel.includesDeadlineTime = true
+        viewModel.deadlineTime = instant
+    }
+
+    private var openingDeadline: Date {
+        calendar.date(from: DateComponents(year: 2026, month: 11, day: 25, hour: 9))!
+    }
+
+    @Test("a round on the chosen instant with an applied or OA status asks to change the status")
+    func aRoundOnTheChosenInstantShowsTheStatusHint() throws {
+        let roundInstant = try #require(calendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 20, hour: 14, minute: 30)
+        ))
+
+        for status in [ApplicationStatus.applied, .oa] {
+            let viewModel = makeEditViewModel(
+                fake: FakeApplicationRepository(),
+                application: makeEditingApplication(
+                    status: status,
+                    deadline: openingDeadline,
+                    roundsAt: [roundInstant]
+                )
+            )
+
+            #expect(viewModel.staleStatusHint == nil, "untouched selection stays quiet")
+
+            chooseDeadline(roundInstant, on: viewModel)
+
+            #expect(
+                viewModel.staleStatusHint
+                    == "\(ApplicationDateFormatting.monthDayTime(roundInstant)) 这一轮面试，状态仍是 \(status.displayName)——到详情页改成面试"
+            )
+        }
+    }
+
+    @Test("no round on the chosen instant means no status hint, even for OA")
+    func noRoundOnTheChosenInstantMeansNoStatusHint() throws {
+        let roundInstant = try #require(calendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 21, hour: 10)
+        ))
+        let chosenInstant = try #require(calendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 20, hour: 14, minute: 30)
+        ))
+        let viewModel = makeEditViewModel(
+            fake: FakeApplicationRepository(),
+            application: makeEditingApplication(
+                status: .oa,
+                deadline: openingDeadline,
+                roundsAt: [roundInstant]
+            )
+        )
+
+        chooseDeadline(chosenInstant, on: viewModel)
+
+        #expect(viewModel.hasEditedDeadlineSelection)
+        #expect(viewModel.staleStatusHint == nil)
+    }
+
+    @Test("an interview or offer status never draws the status hint")
+    func laterStatusesNeverDrawTheStatusHint() throws {
+        let roundInstant = try #require(calendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 20, hour: 14, minute: 30)
+        ))
+
+        for status in [ApplicationStatus.interview, .offer] {
+            let viewModel = makeEditViewModel(
+                fake: FakeApplicationRepository(),
+                application: makeEditingApplication(
+                    status: status,
+                    deadline: openingDeadline,
+                    roundsAt: [roundInstant]
+                )
+            )
+
+            chooseDeadline(roundInstant, on: viewModel)
+
+            #expect(viewModel.staleStatusHint == nil)
+        }
+    }
+
+    @Test("both hints can show at the same time")
+    func bothHintsCanShowTogether() throws {
+        let chosenInstant = try #require(calendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 1, hour: 14, minute: 30)
+        ))
+        let viewModel = makeEditViewModel(
+            fake: FakeApplicationRepository(),
+            application: makeEditingApplication(
+                status: .oa,
+                deadline: openingDeadline,
+                roundsAt: [chosenInstant]
+            )
+        )
+
+        chooseDeadline(chosenInstant, on: viewModel)
+
+        #expect(viewModel.pastDeadlineHint == "这个时刻已经过去了，会显示为已过")
+        #expect(viewModel.staleStatusHint != nil)
+    }
+
+    @Test("the hints never block a save or change the status")
+    func hintsDoNotBlockSaving() throws {
+        let chosenInstant = try #require(calendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 1, hour: 14, minute: 30)
+        ))
+        let application = makeEditingApplication(
+            status: .oa,
+            deadline: openingDeadline,
+            roundsAt: [chosenInstant]
+        )
+        let fake = FakeApplicationRepository()
+        let viewModel = makeEditViewModel(fake: fake, application: application)
+
+        chooseDeadline(chosenInstant, on: viewModel)
+        #expect(viewModel.pastDeadlineHint != nil)
+        #expect(viewModel.staleStatusHint != nil)
+
+        viewModel.save()
+
+        #expect(viewModel.saveErrorMessage == nil)
+        #expect(viewModel.savedApplicationID == application.id)
+        #expect(fake.updateCalls.count == 1)
+        #expect(fake.updateCalls.first?.deadline == chosenInstant)
+        #expect(fake.statusChangeCalls.isEmpty)
+        #expect(application.status == .oa)
     }
 }

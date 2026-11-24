@@ -77,3 +77,13 @@ final class Application {
         self.location = location
     }
 }
+
+extension Application {
+    /// ADR-0005 decision 4: recording a round moves the pointer only when it is empty or later than
+    /// the round (i.e. the earlier of the two). Past rounds are written like any other; nothing
+    /// reconciles a deadline back into rounds.
+    func deadlineAfterRecordingRound(at instant: Date) -> Date? {
+        guard let deadline else { return instant }
+        return min(deadline, instant)
+    }
+}

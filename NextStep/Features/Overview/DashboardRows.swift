@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// One agenda row: day/time, company + action, and the deadline/interview glyph. Past events stay
-/// visible with a 「已过」 marker and dimmed content.
+/// One agenda row: day/time, company + node, and the node glyph. Events only ever come from the
+/// deadline, so there is one glyph and no 「已过」 marker — past nodes left the agenda.
 struct DashboardEventRow: View {
     let event: DashboardEvent
     let now: Date
@@ -19,19 +19,9 @@ struct DashboardEventRow: View {
             .frame(width: 52, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(event.application.companyName)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-                    if event.isPast {
-                        Text("已过")
-                            .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.secondary.opacity(0.15)))
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                Text(event.application.companyName)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
                 Text("\(event.title) · \(event.application.roleTitle)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -40,9 +30,9 @@ struct DashboardEventRow: View {
 
             Spacer(minLength: 6)
 
-            Image(systemName: event.kind == .deadline ? "calendar.badge.clock" : "person.2")
+            Image(systemName: "calendar.badge.clock")
                 .font(.callout)
-                .foregroundStyle(event.kind == .deadline ? Color.orange : Color.blue)
+                .foregroundStyle(Color.orange)
 
             Image(systemName: "chevron.right")
                 .font(.caption2.weight(.semibold))
@@ -50,7 +40,6 @@ struct DashboardEventRow: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .opacity(event.isPast ? 0.65 : 1)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityHint("打开申请详情")

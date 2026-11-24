@@ -762,6 +762,178 @@ struct ApplicationRepositoryTests {
         }
     }
 
+    // MARK: - Round writes move the pointer (ADR-0005 decision 4)
+
+    private func date(
+        _ year: Int,
+        _ month: Int,
+        _ day: Int,
+        _ hour: Int,
+        _ minute: Int = 0,
+        calendar: Calendar
+    ) throws -> Date {
+        try #require(
+            calendar.date(from: DateComponents(
+                year: year, month: month, day: day, hour: hour, minute: minute
+            ))
+        )
+    }
+
+    @Test("a recorded round fills an empty pointer and the earlier instant wins afterwards")
+    func recordingRoundsWritesTheEarlierInstant() throws {
+        let calendar = makeCalendar()
+        let createdAt = try date(2026, 11, 9, 10, calendar: calendar)
+        let firstRound = try date(2026, 10, 20, 14, calendar: calendar)
+        let laterRound = try date(2026, 10, 25, 9, calendar: calendar)
+        let made = try makeRepository(now: createdAt, calendar: calendar)
+
+        try withExtendedLifetime(made.container) {
+            let repository = made.repository
+            let application = try repository.createApplication(
+                companyName: "星尘科技",
+                roleTitle: "iOS 开发实习生",
+                initialStatus: .applied,
+                statusDate: createdAt,
+                deadline: nil,
+                jobURL: nil,
+                location: nil,
+                notes: nil,
+                jobPosting: nil
+            )
+
+            try repository.addInterviewRound(
+                to: application,
+                scheduledAt: firstRound,
+                format: .video,
+                label: "一面",
+                contact: nil,
+                notes: nil,
+                result: .pending
+            )
+            #expect(application.deadline == firstRound)
+            #expect(application.status == .applied)
+
+            try repository.addInterviewRound(
+                to: application,
+                scheduledAt: laterRound,
+                format: .video,
+                label: "二面",
+                contact: nil,
+                notes: nil,
+                result: .pending
+            )
+            #expect(application.deadline == firstRound)
+            #expect(application.status == .applied)
+        }
+    }
+
+    @Test("a round earlier than the pointer is written into the pointer")
+    func earlierRoundOverwritesALaterPointer() throws {
+        let calendar = makeCalendar()
+        let createdAt = try date(2026, 11, 9, 10, calendar: calendar)
+        let pointer = try date(2026, 10, 25, 9, calendar: calendar)
+        let earlierRound = try date(2026, 10, 20, 14, calendar: calendar)
+        let made = try makeRepository(now: createdAt, calendar: calendar)
+
+        try withExtendedLifetime(made.container) {
+            let repository = made.repository
+            let application = try repository.createApplication(
+                companyName: "星尘科技",
+                roleTitle: "iOS 开发实习生",
+                initialStatus: .applied,
+                statusDate: createdAt,
+                deadline: pointer,
+                jobURL: nil,
+                location: nil,
+                notes: nil,
+                jobPosting: nil
+            )
+
+            try repository.addInterviewRound(
+                to: application,
+                scheduledAt: earlierRound,
+                format: .video,
+                label: "一面",
+                contact: nil,
+                notes: nil,
+                result: .pending
+            )
+
+            #expect(application.deadline == earlierRound)
+        }
+    }
+
+    @Test("a round already in the past is still written into the pointer")
+    func pastRoundIsWrittenLikeAnyOther() throws {
+        let calendar = makeCalendar()
+        let createdAt = try date(2026, 11, 9, 10, calendar: calendar)
+        let pastRound = try date(2026, 10, 1, 9, calendar: calendar)
+        let made = try makeRepository(now: createdAt, calendar: calendar)
+
+        try withExtendedLifetime(made.container) {
+            let repository = made.repository
+            let application = try createApplication(
+                in: repository,
+                status: .interview,
+                statusDate: createdAt
+            )
+
+            try repository.addInterviewRound(
+                to: application,
+                scheduledAt: pastRound,
+                format: .phone,
+                label: "补记录",
+                contact: nil,
+                notes: nil,
+                result: .passed
+            )
+
+            #expect(application.deadline == pastRound)
+        }
+    }
+
+    @Test("rescheduling an existing round also moves the pointer")
+    func editingARoundMovesThePointer() throws {
+        let calendar = makeCalendar()
+        let createdAt = try date(2026, 11, 9, 10, calendar: calendar)
+        let originalDate = try date(2026, 10, 30, 15, calendar: calendar)
+        let rescheduledDate = try date(2026, 10, 20, 14, calendar: calendar)
+        let made = try makeRepository(now: createdAt, calendar: calendar)
+
+        try withExtendedLifetime(made.container) {
+            let repository = made.repository
+            let application = try createApplication(
+                in: repository,
+                status: .oa,
+                statusDate: createdAt
+            )
+            let round = try repository.addInterviewRound(
+                to: application,
+                scheduledAt: originalDate,
+                format: .video,
+                label: "一面",
+                contact: nil,
+                notes: nil,
+                result: .pending
+            )
+            #expect(application.deadline == originalDate)
+
+            try repository.updateInterviewRound(
+                round,
+                scheduledAt: rescheduledDate,
+                format: .video,
+                label: "一面",
+                contact: nil,
+                notes: nil,
+                result: .pending
+            )
+
+            #expect(application.deadline == rescheduledDate)
+            #expect(application.status == .oa)
+            #expect(try repository.statusChanges(for: application).count == 1)
+        }
+    }
+
     private func fixedID(_ value: Int) -> UUID {
         UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", value))!
     }

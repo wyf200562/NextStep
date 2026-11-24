@@ -75,6 +75,10 @@ struct ApplicationEditorView: View {
                                 displayedComponents: .hourAndMinute
                             )
                         }
+
+                        // Hints only: no buttons, no confirmation, no effect on saving.
+                        inlineHint(viewModel.pastDeadlineHint)
+                        inlineHint(viewModel.staleStatusHint)
                     }
                 }
 
@@ -129,6 +133,15 @@ struct ApplicationEditorView: View {
             Text(message)
                 .font(.caption)
                 .foregroundStyle(.red)
+        }
+    }
+
+    @ViewBuilder
+    private func inlineHint(_ message: String?) -> some View {
+        if let message {
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

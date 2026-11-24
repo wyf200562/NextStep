@@ -36,20 +36,23 @@
 - `InterviewRound` 记时间、形式（电话/视频/现场/其他）、名称、联系人、备注、结果（待定/通过/未通过/取消）。
 - 轮次按 `scheduledAt` 升序、同时间 `id` 兜底；过去的轮次弱化显示。
 - 添加未来轮次时，若当前状态是 applied 或 oa，追问是否标记为「面试中」；仅当状态机允许时才提示。轮次失败不会自动把申请标为 rejected。
-- 申请详情「下一个节点」取 deadline 与最近 pending 面试中更早的一个；没有时显示「暂无即将到来的截止或面试」。
+- 保存轮次时同步指针：`deadline` 为空，或轮次时间早于 `deadline`，就把该时刻写入；改 `deadline` 不反向改轮次，也不做自动对账（ADR-0005 决策 4）。
+- 申请详情「下一个节点」就是 `deadline` 本身（ADR-0005）；为空或申请已终结时显示「还没有下一个节点」。已过的指针是可见状态，不是空态。
+- 节点文案：同刻存在轮次就取那轮的 `label`（`label` 为空取「面试」，不筛 `result`），否则一律「截止」；不按 `status` 推导。
 
 ## 概览派生
 
 概览不配 ViewModel：`@Query` 取全部 `Application`，纯 `DashboardBuilder` 输出：
 
-- **今天事件**：今天 00:00–24:00 内的 deadline 和 pending 面试；已过去的今天事件仍显示并标「已过」。
-- **接下来 7 天**：明天起 7 天内的事件。
-- 终态 rejected / withdrawn 不产生事件；offer 的答复截止仍计入。
-- 两个来源合并后按时间升序；同时间按 `application.id`，deadline 先于 interview，最后按轮次 `id`。
-- **计数**：进行中 / 7 天内截止 / Offer。`dueSoonCount` 按去重后的申请数计算，不是事件数。
+- **今天事件**：此刻到明天 00:00 之间的 `deadline`，一个申请最多一条。
+- **接下来 7 天**：明天起，到「今天 + 8 天 00:00」为止。
+- 过去的事件不进入议程，改由议程上方一行「N 个申请的节点已过，去更新」报数。
+- 终态 rejected / withdrawn 既不产生事件，也不计入已过报数；offer 的答复截止仍计入。
+- 事件按时间升序；同时间按 `application.id`。
+- **计数**：进行中 / 接下来 7 天 / Offer。`upcomingCount` 与议程同源——一个申请最多一条事件，所以它恒等于议程条数，不另算一遍。
 - **最近更新**：全部状态按 `lastModifiedAt` 降序取前 5，同时间 `id` 兜底。
 
-首屏顺序固定为：事件 → 一行计数 → 最近更新；没有事件时显示轻量提示，不用图表挤占注意力。
+首屏顺序固定为：已过报数行（`N > 0` 才出现）→ 事件 → 一行计数 → 最近更新；没有事件时显示轻量提示，不用图表挤占注意力。
 
 ## 仓库职责
 
@@ -66,9 +69,9 @@
 
 ## 列表筛选与排序
 
-- 全部 / 进行中 / 临近截止 / Offer / 已结束。
-- 进行中 = wishlist、applied、oa、interview；临近截止 = deadline 或 pending 面试在 7 天内且状态不是 rejected/withdrawn；已结束 = rejected、withdrawn。
-- 全部 / 进行中 / 临近截止：最近 upcoming 节点升序；无节点按 `lastModifiedAt` 降序；同时间 `id` 兜底。
+- 全部 / 进行中 / 接下来 7 天 / Offer / 已结束。
+- 进行中 = wishlist、applied、oa、interview；接下来 7 天 = `deadline` 落在 `[此刻, 今天+8 天 00:00)` 且状态不是 rejected/withdrawn；已结束 = rejected、withdrawn。
+- 全部 / 进行中 / 接下来 7 天：有节点的在前——未来的按时间升序，已过的按时间降序（最近过期的先）；无节点按 `lastModifiedAt` 降序；同时间 `id` 兜底。
 - Offer / 已结束：`lastModifiedAt` 降序，同时间 `id` 兜底。
 
 ## 删除与恢复

@@ -285,37 +285,36 @@ struct ApplicationDetailView: View {
         }
     }
 
+    /// The deadline rendered as the single node. The gate — no deadline or an ended status — and the
+    /// copy come from `ApplicationNodeCopy`, the same call the list row makes.
     @ViewBuilder
     private var nextNodeCard: some View {
         if let node = viewModel.nextNode {
             HStack(alignment: .top, spacing: 10) {
-                Image(systemName: node.kind == .deadline ? "calendar.badge.clock" : "person.2")
-                    .foregroundStyle(node.kind == .deadline ? Color.orange : Color.blue)
+                Image(systemName: "calendar.badge.clock")
+                    .foregroundStyle(Color.orange)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(nextNodeTitle(node))
-                        .font(.subheadline.weight(.semibold))
+                    HStack(spacing: 6) {
+                        Text(node.title)
+                            .font(.subheadline.weight(.semibold))
+                        if node.isOverdue {
+                            Text(ApplicationNodeCopy.overdueText)
+                                .font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     Text(ApplicationDateFormatting.monthDayTime(node.date))
                 }
             }
             .padding(.vertical, 2)
         } else {
-            Text("暂无即将到来的截止或面试")
+            Text("还没有下一个节点")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .padding(.vertical, 2)
-        }
-    }
-
-    private func nextNodeTitle(_ node: ApplicationNextNode) -> String {
-        switch node.kind {
-        case .deadline:
-            "截止"
-        case .interview:
-            if let label = node.roundLabel, !label.isEmpty {
-                "面试 · \(label)"
-            } else {
-                "面试"
-            }
         }
     }
 
@@ -323,7 +322,7 @@ struct ApplicationDetailView: View {
         let isPast = round.scheduledAt < viewModel.currentDate
         return VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
-                Text(roundTitle(round))
+                Text(ApplicationNodeCopy.title(forRound: round))
                     .font(.subheadline.weight(.semibold))
                 Spacer(minLength: 8)
                 Text(round.result.displayName)
@@ -344,13 +343,6 @@ struct ApplicationDetailView: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityHint("编辑这轮面试")
-    }
-
-    private func roundTitle(_ round: InterviewRound) -> String {
-        if let label = round.label, !label.isEmpty {
-            return label
-        }
-        return "面试"
     }
 
     private func roundResultColor(_ result: InterviewResult) -> Color {

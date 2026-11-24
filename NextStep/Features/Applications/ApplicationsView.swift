@@ -90,7 +90,7 @@ struct ApplicationsView: View {
         return switch filter {
         case .all: "还没有申请"
         case .active: "没有进行中的申请"
-        case .dueSoon: "7 天内没有临近截止"
+        case .upcoming: "接下来 7 天没有节点"
         case .offer: "还没有 Offer"
         case .ended: "没有已结束的申请"
         }
@@ -103,7 +103,7 @@ struct ApplicationsView: View {
         return switch filter {
         case .all: "记录第一份申请，或去 Discover 看看岗位。"
         case .active: "想投、已投、OA 和面试中的申请会出现在这里。"
-        case .dueSoon: "有截止日期或待定面试时，这里会提醒你。"
+        case .upcoming: "给申请填上截止时间，接下来的节点会出现在这里。"
         case .offer: "收到 Offer 后，申请会出现在这里。"
         case .ended: "已拒或已撤的申请会出现在这里。"
         }
@@ -113,7 +113,7 @@ struct ApplicationsView: View {
         switch filter {
         case .all: "tray"
         case .active: "clock"
-        case .dueSoon: "calendar.badge.clock"
+        case .upcoming: "calendar.badge.clock"
         case .offer: "checkmark.seal"
         case .ended: "archivebox"
         }

@@ -172,15 +172,25 @@ struct GoldenPathIntegrationTests {
                 result: .pending
             )
 
+            // Recording the round moved the pointer onto the earlier instant, so the agenda has
+            // one node for this application and it comes from the deadline (ADR-0005 decisions 1
+            // and 4). The round itself no longer produces an event.
+            #expect(application.deadline == interviewDate)
+
             let snapshot = DashboardBuilder.snapshot(
                 applications: try applicationRepository.allApplications(),
                 now: now,
                 calendar: calendar
             )
+            let events = snapshot.todayEvents + snapshot.upcomingEvents
             #expect(snapshot.activeCount == 1)
-            #expect(snapshot.dueSoonCount == 1)
-            #expect(snapshot.upcomingEvents.contains { $0.kind == .interview && $0.roundLabel == "一面" })
-            #expect(snapshot.upcomingEvents.contains { $0.kind == .deadline })
+            #expect(events.count == 1)
+            #expect(events.first?.applicationID == application.id)
+            #expect(events.first?.date == interviewDate)
+            // The pointer sits on the round's instant, so the node is named after that round.
+            #expect(events.first?.title == "一面")
+            #expect(snapshot.upcomingCount == 1)
+            #expect(snapshot.overdueCount == 0)
             #expect(snapshot.recentApplications.first?.id == application.id)
             #expect(ledger.nextAttemptBlock(for: .remotive) == nil)
         }
@@ -223,7 +233,12 @@ struct GoldenPathIntegrationTests {
                 now: now,
                 calendar: calendar
             )
-            #expect(snapshot.hasEvents)
+            // The pointer written by the round survived the relaunch, and it is still the only
+            // event for this application.
+            #expect(application.deadline == calendar.date(byAdding: .day, value: 1, to: now))
+            let events = snapshot.todayEvents + snapshot.upcomingEvents
+            #expect(events.count == 1)
+            #expect(events.first?.title == "一面")
         }
     }
 }
