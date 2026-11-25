@@ -28,6 +28,20 @@ final class DiscoverViewModel {
         let message: String?
     }
 
+    /// Where the single "paste a JD" entry lands. Exactly one applies per screen state; the View
+    /// switches on this instead of scattering cache/refresh booleans across its hierarchy.
+    enum PasteEntryPlacement {
+        /// First frame or the empty cache's first load: render nothing so the empty-state card
+        /// cannot flash before the spinner.
+        case none
+        /// No cache and a blocked or failed refresh: the full-screen error state owns the button.
+        case blocking
+        /// No jobs at all: the dashed card is the only entry.
+        case emptyCard
+        /// Jobs exist: the navigation bar's + is the only entry.
+        case toolbar
+    }
+
     static let automaticRefreshInterval: TimeInterval = 6 * 60 * 60
 
     private static let refreshQuery = JobQuery()
@@ -190,6 +204,13 @@ final class DiscoverViewModel {
         case .idle, .refreshing, .refreshed, .skipped(.fresh):
             return nil
         }
+    }
+
+    /// The single paste-a-JD entry point for the current screen state, in precedence order.
+    var pasteEntryPlacement: PasteEntryPlacement {
+        if isInitialLoading { return .none }
+        if blockingRefreshPrompt != nil { return .blocking }
+        return jobs.isEmpty ? .emptyCard : .toolbar
     }
 
     /// First appearance: show the cache immediately, then refresh unless a fresh successful refresh

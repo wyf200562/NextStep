@@ -44,7 +44,9 @@ struct DiscoverView: View {
                         Task { await viewModel.refresh() }
                     }
                 } else {
-                    PasteJobCard()
+                    if viewModel.pasteEntryPlacement == .emptyCard {
+                        PasteJobCard()
+                    }
 
                     if let notice = viewModel.refreshNotice {
                         RefreshNoticeCard(prompt: notice) {
@@ -165,7 +167,7 @@ private struct PasteJobCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("粘贴一份 JD")
                         .font(.subheadline.weight(.semibold))
-                    Text("本地匹配，不消耗 Remotive 配额")
+                    Text("立刻看到匹配分。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -444,10 +446,6 @@ private struct IneligibleGroup: View {
                     }
                     .buttonStyle(.plain)
                 }
-
-                // Spec §8: the same paste-a-JD entry also appears in the ineligible group.
-                PasteJobCard()
-                    .padding(.top, 2)
             }
         }
     }
@@ -604,8 +602,6 @@ private struct DiscoverEmptyState: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            PasteJDButton()
-                .padding(.top, 6)
             Button("重试", action: retry)
                 .font(.subheadline.weight(.semibold))
                 .frame(maxWidth: 280)
@@ -636,8 +632,6 @@ private struct FilteredEmptyState: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            PasteJDButton()
-                .padding(.top, 6)
             Button(action: showAll) {
                 Text("查看全部 \(totalCount) 条岗位")
                     .font(.subheadline.weight(.semibold))
@@ -658,24 +652,6 @@ private struct FilteredEmptyState: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
         .padding(.horizontal, 8)
-    }
-}
-
-private struct PasteJDButton: View {
-    var body: some View {
-        NavigationLink(value: DiscoverRoute.manualImport) {
-            Text("粘贴 JD")
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.accentColor)
-                )
-                .foregroundStyle(Color.white)
-        }
-        .buttonStyle(.plain)
-        .frame(maxWidth: 280)
     }
 }
 

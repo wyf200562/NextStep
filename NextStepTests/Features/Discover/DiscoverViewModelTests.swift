@@ -609,6 +609,54 @@ struct DiscoverViewModelTests {
         #expect(viewModel.refreshNotice?.message == "加载失败，请稍后重试")
     }
 
+    // MARK: - Paste entry placement
+
+    @Test func pasteEntryPlacementIsNoneOnTheFirstFrame() {
+        let repository = FakeJobRepository()
+        let viewModel = DiscoverViewModel(
+            jobRepository: repository,
+            dateProvider: makeDateProvider()
+        )
+
+        #expect(viewModel.pasteEntryPlacement == .none)
+    }
+
+    @Test func pasteEntryPlacementIsBlockingWhenTheEmptyCacheFailsToRefresh() async {
+        let repository = FakeJobRepository()
+        repository.cachedJobsResult = .success([])
+        repository.refreshResult = .failed(error: JobSourceError.offline, cachedCount: 0)
+        let viewModel = makeRefreshingViewModel(repository)
+
+        await viewModel.loadAndRefreshIfNeeded()
+
+        #expect(viewModel.jobs.isEmpty)
+        #expect(viewModel.pasteEntryPlacement == .blocking)
+    }
+
+    @Test func pasteEntryPlacementIsEmptyCardWhenTheRefreshReturnsNoJobs() async {
+        let repository = FakeJobRepository()
+        repository.cachedJobsResult = .success([])
+        repository.refreshResult = .refreshed(added: 0, updated: 0)
+        let viewModel = makeRefreshingViewModel(repository)
+
+        await viewModel.loadAndRefreshIfNeeded()
+
+        #expect(viewModel.jobs.isEmpty)
+        #expect(viewModel.pasteEntryPlacement == .emptyCard)
+    }
+
+    @Test func pasteEntryPlacementIsBlockingWhenTheQuotaIsExhausted() async {
+        let repository = FakeJobRepository()
+        repository.cachedJobsResult = .success([])
+        repository.refreshResult = .skipped(reason: .quotaExhausted)
+        let viewModel = makeRefreshingViewModel(repository)
+
+        await viewModel.loadAndRefreshIfNeeded()
+
+        #expect(viewModel.jobs.isEmpty)
+        #expect(viewModel.pasteEntryPlacement == .blocking)
+    }
+
     @Test func aFailureAfterASuccessClearsTheRefreshSummary() async {
         let repository = FakeJobRepository()
         repository.cachedJobsResult = .success([
