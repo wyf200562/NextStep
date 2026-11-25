@@ -693,7 +693,7 @@ struct DiscoverViewModelTests {
         #expect(viewModel.pasteEntryPlacement == .toolbar)
     }
 
-    @Test func onlyInternshipsDoesNotChangeThePasteEntryPlacement() {
+    @Test func pasteEntryPlacementIgnoresTheInternshipFilter() {
         let repository = FakeJobRepository()
         repository.cachedJobsResult = .success([
             makePosting(title: "Remotive Full Time", intakeMethod: .remotive, jobType: "full_time"),
@@ -710,7 +710,7 @@ struct DiscoverViewModelTests {
         #expect(viewModel.pasteEntryPlacement == .toolbar)
     }
 
-    @Test func aFailedRefreshWithCachedJobsKeepsTheToolbarPlacement() async {
+    @Test func pasteEntryPlacementStaysToolbarWhenACachedRefreshFails() async {
         let repository = FakeJobRepository()
         repository.cachedJobsResult = .success([
             makePosting(title: "Cached Intern", intakeMethod: .remotive, jobType: "internship"),
