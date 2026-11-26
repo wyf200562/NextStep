@@ -609,6 +609,122 @@ struct DiscoverViewModelTests {
         #expect(viewModel.refreshNotice?.message == "加载失败，请稍后重试")
     }
 
+    // MARK: - Paste entry placement
+
+    @Test func pasteEntryPlacementIsNoneOnTheFirstFrame() {
+        let repository = FakeJobRepository()
+        let viewModel = DiscoverViewModel(
+            jobRepository: repository,
+            dateProvider: makeDateProvider()
+        )
+
+        #expect(viewModel.pasteEntryPlacement == .none)
+    }
+
+    @Test func pasteEntryPlacementIsBlockingWhenTheEmptyCacheFailsToRefresh() async {
+        let repository = FakeJobRepository()
+        repository.cachedJobsResult = .success([])
+        repository.refreshResult = .failed(error: JobSourceError.offline, cachedCount: 0)
+        let viewModel = makeRefreshingViewModel(repository)
+
+        await viewModel.loadAndRefreshIfNeeded()
+
+        #expect(viewModel.jobs.isEmpty)
+        #expect(viewModel.pasteEntryPlacement == .blocking)
+    }
+
+    @Test func pasteEntryPlacementIsEmptyCardWhenTheRefreshReturnsNoJobs() async {
+        let repository = FakeJobRepository()
+        repository.cachedJobsResult = .success([])
+        repository.refreshResult = .refreshed(added: 0, updated: 0)
+        let viewModel = makeRefreshingViewModel(repository)
+
+        await viewModel.loadAndRefreshIfNeeded()
+
+        #expect(viewModel.jobs.isEmpty)
+        #expect(viewModel.pasteEntryPlacement == .emptyCard)
+    }
+
+    @Test func pasteEntryPlacementIsBlockingWhenTheQuotaIsExhausted() async {
+        let repository = FakeJobRepository()
+        repository.cachedJobsResult = .success([])
+        repository.refreshResult = .skipped(reason: .quotaExhausted)
+        let viewModel = makeRefreshingViewModel(repository)
+
+        await viewModel.loadAndRefreshIfNeeded()
+
+        #expect(viewModel.jobs.isEmpty)
+        #expect(viewModel.pasteEntryPlacement == .blocking)
+    }
+
+    @Test func pasteEntryPlacementIsToolbarWhenTheCacheHasJobs() {
+        let repository = FakeJobRepository()
+        repository.cachedJobsResult = .success([
+            makePosting(title: "Cached Intern", intakeMethod: .remotive, jobType: "internship"),
+        ])
+        let viewModel = makeRefreshingViewModel(repository)
+
+        viewModel.loadCachedJobs()
+
+        #expect(viewModel.pasteEntryPlacement == .toolbar)
+    }
+
+    @Test func pasteEntryPlacementStaysToolbarWhenNoJobFitsTheProfile() {
+        let repository = FakeJobRepository()
+        let fullTime = MatchFixtures.job(
+            identityKey: "remotive:full",
+            title: "iOS Engineer",
+            jobType: "full_time"
+        )
+        repository.cachedJobsResult = .success([fullTime])
+        let provider = FakeMatchProvider()
+        provider.results = [
+            "remotive:full": MatchFixtures.result(
+                score: nil,
+                band: nil,
+                eligibility: .ineligible(reason: .notInternship)
+            ),
+        ]
+        let viewModel = makeRefreshingViewModel(repository, provider: provider)
+
+        viewModel.loadCachedJobs()
+
+        #expect(viewModel.eligibleJobs.isEmpty)
+        #expect(viewModel.pasteEntryPlacement == .toolbar)
+    }
+
+    @Test func pasteEntryPlacementIgnoresTheInternshipFilter() {
+        let repository = FakeJobRepository()
+        repository.cachedJobsResult = .success([
+            makePosting(title: "Remotive Full Time", intakeMethod: .remotive, jobType: "full_time"),
+        ])
+        let viewModel = makeRefreshingViewModel(repository)
+        viewModel.loadCachedJobs()
+        #expect(viewModel.pasteEntryPlacement == .toolbar)
+
+        viewModel.onlyInternships = true
+        #expect(viewModel.visibleJobs.isEmpty)
+        #expect(viewModel.pasteEntryPlacement == .toolbar)
+
+        viewModel.onlyInternships = false
+        #expect(viewModel.pasteEntryPlacement == .toolbar)
+    }
+
+    @Test func pasteEntryPlacementStaysToolbarWhenACachedRefreshFails() async {
+        let repository = FakeJobRepository()
+        repository.cachedJobsResult = .success([
+            makePosting(title: "Cached Intern", intakeMethod: .remotive, jobType: "internship"),
+        ])
+        repository.refreshResult = .failed(error: JobSourceError.offline, cachedCount: 1)
+        let viewModel = makeRefreshingViewModel(repository)
+        viewModel.loadCachedJobs()
+
+        await viewModel.refresh()
+
+        #expect(viewModel.blockingRefreshPrompt == nil)
+        #expect(viewModel.pasteEntryPlacement == .toolbar)
+    }
+
     @Test func aFailureAfterASuccessClearsTheRefreshSummary() async {
         let repository = FakeJobRepository()
         repository.cachedJobsResult = .success([

@@ -21,6 +21,19 @@ struct DiscoverView: View {
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Discover")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // The + is the only paste entry once jobs exist; the empty card and the blocking
+                // state own theirs, so this must not appear alongside them.
+                if viewModel.pasteEntryPlacement == .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink(value: DiscoverRoute.manualImport) {
+                            Text("＋")
+                                .font(.title3.weight(.semibold))
+                        }
+                        .accessibilityLabel("粘贴 JD")
+                    }
+                }
+            }
             .task {
                 guard !didLoad else { return }
                 didLoad = true
@@ -44,7 +57,9 @@ struct DiscoverView: View {
                         Task { await viewModel.refresh() }
                     }
                 } else {
-                    PasteJobCard()
+                    if viewModel.pasteEntryPlacement == .emptyCard {
+                        PasteJobCard()
+                    }
 
                     if let notice = viewModel.refreshNotice {
                         RefreshNoticeCard(prompt: notice) {
@@ -165,7 +180,7 @@ private struct PasteJobCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("粘贴一份 JD")
                         .font(.subheadline.weight(.semibold))
-                    Text("本地匹配，不消耗 Remotive 配额")
+                    Text("立刻看到匹配分。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -444,10 +459,6 @@ private struct IneligibleGroup: View {
                     }
                     .buttonStyle(.plain)
                 }
-
-                // Spec §8: the same paste-a-JD entry also appears in the ineligible group.
-                PasteJobCard()
-                    .padding(.top, 2)
             }
         }
     }
@@ -518,21 +529,9 @@ private struct EligibleInlineEmptyState: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("这一批岗位里没有适合你的")
                 .font(.subheadline.weight(.semibold))
-            Text("条件不符的岗位仍然列在下方。也可以粘贴一份 JD，用本地匹配看看。")
+            Text("条件不符的岗位仍然列在下方。也可以点右上角的 ＋ 粘贴一份 JD，用本地匹配看看。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            NavigationLink(value: DiscoverRoute.manualImport) {
-                Text("粘贴 JD")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.accentColor)
-                    )
-                    .foregroundStyle(Color.white)
-            }
-            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -604,8 +603,6 @@ private struct DiscoverEmptyState: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            PasteJDButton()
-                .padding(.top, 6)
             Button("重试", action: retry)
                 .font(.subheadline.weight(.semibold))
                 .frame(maxWidth: 280)
@@ -636,8 +633,6 @@ private struct FilteredEmptyState: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            PasteJDButton()
-                .padding(.top, 6)
             Button(action: showAll) {
                 Text("查看全部 \(totalCount) 条岗位")
                     .font(.subheadline.weight(.semibold))
@@ -650,7 +645,7 @@ private struct FilteredEmptyState: View {
                     .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
-            Text("手动导入的岗位会出现在这里；明天会有新样本。")
+            Text("手动导入的岗位会出现在这里；也可以点右上角的 ＋ 粘贴一份 JD。明天会有新样本。")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -658,24 +653,6 @@ private struct FilteredEmptyState: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
         .padding(.horizontal, 8)
-    }
-}
-
-private struct PasteJDButton: View {
-    var body: some View {
-        NavigationLink(value: DiscoverRoute.manualImport) {
-            Text("粘贴 JD")
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.accentColor)
-                )
-                .foregroundStyle(Color.white)
-        }
-        .buttonStyle(.plain)
-        .frame(maxWidth: 280)
     }
 }
 
