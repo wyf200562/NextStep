@@ -1,6 +1,8 @@
 # 概览看板（DashboardBuilder）
 
-概览是行动优先的首屏：先回答「今天和这周还有什么节点」，再给三个进展计数和最近改动。页面自己不持有业务状态——`@Query` 取全部 `Application`，纯 `enum DashboardBuilder` 把它折算成一个只读的 `DashboardSnapshot`，View 只负责摆放（来源：NextStep/Features/Overview/OverviewView.swift:6-21）。
+概览是行动优先的首屏：先回答「今天和这周还有什么节点」，再给三个进展计数和最近改动。页面自己不持有业务状态——`@Query` 取全部 `Application`，纯 `enum DashboardBuilder` 把它折算成一个只读的 `DashboardSnapshot`，看板 `DashboardView` 只负责摆放（来源：NextStep/Features/Overview/OverviewView.swift:5-11；NextStep/Features/Overview/DashboardView.swift:4-25）。
+
+页面与看板的边界是「数据从哪来」对「渲染什么」：`OverviewView` 持有 `@Query`、`DateProvider`、页眉、工具栏、编辑 sheet 与空态；`DashboardView(snapshot:)` 只有快照一个数据输入，不读 `@Query`，因此可以脱离数据源被构造。命名族同这条线：`Dashboard*` 是这个屏幕的部件（builder / snapshot / event / rows / formatting / view），`Overview*` 是页面（页面 / tab 壳 / 路由）。
 
 ## 职责与数据流
 
@@ -11,13 +13,15 @@
 DashboardBuilder.snapshot(applications:now:calendar:)   ← 纯函数, 无 I/O
       │
       ▼
-DashboardSnapshot  ──► OverviewView ──► DashboardEventRow / DashboardRecentRow
+DashboardSnapshot  ──► DashboardView(snapshot:) ──► DashboardEventRow / DashboardRecentRow
+                              ▲
+                        OverviewView（@Query、页眉、工具栏、空态）
 ```
 
 - 唯一入口是 `snapshot(applications:now:calendar:)`，返回 `DashboardSnapshot`（来源：NextStep/Features/Overview/DashboardBuilder.swift:38-83）。
-- 调用方是 `OverviewView.body`，每次 body 求值重新算一遍，没有缓存层（来源：NextStep/Features/Overview/OverviewView.swift:16-21）。
-- `now` / `calendar` 来自 `container.dateProvider`：生产是系统时钟，测试与 Preview 用 `FixedDateProvider`（来源：NextStep/Features/Overview/OverviewView.swift:17-20；NextStep/Core/DateProvider.swift:20-31）。
-- 无 ViewModel：概览的每个动作不是 router 跳转就是共享的编辑 sheet，没有异步加载、错误态或表单校验（来源：NextStep/Features/Overview/OverviewView.swift:10；docs/adr/0004-presentation-boundaries.md:3；docs/design/presentation.md:11）。
+- 调用方是 `OverviewView.body`，每次 body 求值重新算一遍，没有缓存层（来源：NextStep/Features/Overview/OverviewView.swift:17-22）。
+- `now` / `calendar` 来自 `container.dateProvider`：生产是系统时钟，测试与 Preview 用 `FixedDateProvider`（来源：NextStep/Features/Overview/OverviewView.swift:19-21；NextStep/Core/DateProvider.swift:20-31）。
+- 无 ViewModel：概览的每个动作不是 router 跳转就是共享的编辑 sheet，没有异步加载、错误态或表单校验（来源：NextStep/Features/Overview/OverviewView.swift:11；docs/adr/0004-presentation-boundaries.md:3；docs/design/presentation.md:11）。
 
 ## Snapshot 是派生值，不落库
 
@@ -32,7 +36,7 @@ DashboardSnapshot  ──► OverviewView ──► DashboardEventRow / Dashboar
 - 一个申请最多一条事件，因为 `deadline` 就是「下一个节点」，而字段本身只有一个（来源：docs/adr/0005-deadline-is-the-next-node.md:3；../../GLOSSARY.md 的 Deadline / Overdue 词条）。
 - `InterviewRound.scheduledAt` 只是那场面试的历史记录与排序依据，退出「即将到来」的计算。测试断言：有未来轮次但没有 deadline，不产生事件、不计数（来源：NextStepTests/Features/DashboardBuilderTests.swift:127-140）。
 - 轮次与 deadline 同刻时仍只产出一条事件，标题取轮次名（来源：NextStepTests/Features/DashboardBuilderTests.swift:108-125）。
-- 已过的事件不进入议程，只折成 `overdueCount` 和议程上方一行「N 个申请的节点已过，去更新」；`count > 0` 才出现（来源：NextStep/Features/Overview/OverviewView.swift:107-136）。
+- 已过的事件不进入议程，只折成 `overdueCount` 和议程上方一行「N 个申请的节点已过，去更新」；`count > 0` 才出现（来源：NextStep/Features/Overview/DashboardView.swift:27-56）。
 - 终态 `rejected` / `withdrawn` 既不产生事件也不计入已过；`offer` 不算终态（`isEnded` 只含前两者），offer 的答复截止仍会计入（来源：NextStep/Features/Applications/ApplicationListFilter.swift:34-40；NextStepTests/Features/DashboardBuilderTests.swift:337, 350-354）。
 
 ## 时间窗口与边界
@@ -70,7 +74,7 @@ DashboardSnapshot  ──► OverviewView ──► DashboardEventRow / Dashboar
 
 `DashboardEvent` 只有 `id`、`application`、`date`，外加计算属性 `applicationID` 和 `title`（来源：NextStep/Features/Overview/DashboardBuilder.swift:8-20）。
 
-- `id` 是复合字符串 `"deadline-<uuid>"`：单一事件来源下，前缀是命名空间，后缀保证跨申请唯一且稳定，方便未来做 diffable 更新；当前 View 用下标 `ForEach(events.indices)` 渲染，尚未读取这个 id（来源：DashboardBuilder.swift:62；OverviewView.swift:167）。
+- `id` 是复合字符串 `"deadline-<uuid>"`：单一事件来源下，前缀是命名空间，后缀保证跨申请唯一且稳定，方便未来做 diffable 更新；当前 View 用下标 `ForEach(events.indices)` 渲染，尚未读取这个 id（来源：DashboardBuilder.swift:62；DashboardView.swift:87）。
 - `title` 委托给 `ApplicationNodeCopy.title(forNodeAt:of:)`：同刻存在轮次就取那轮的 `label`（空白则「面试」，不筛 `result`，多轮同刻取 id 最小），否则一律「截止」；该函数从不读 `status`（来源：NextStep/Features/Applications/ApplicationNodeCopy.swift:26-48）。
 - 排序是 `date` 升序，同刻按 `application.id.uuidString` 升序（来源：DashboardBuilder.swift:93-99）。这与申请列表的 tie-break 相同，所以概览和列表的顺序可以对齐（来源：NextStep/Features/Applications/ApplicationListBuilder.swift:92, 109）。
 - `recentApplications` 按 `lastModifiedAt` 降序取前 5，同刻按 id 升序，且跨全部状态——已拒、已撤也会出现（来源：DashboardBuilder.swift:81, 85-91；NextStepTests/Features/DashboardBuilderTests.swift:252-270）。
@@ -88,9 +92,11 @@ DashboardSnapshot  ──► OverviewView ──► DashboardEventRow / Dashboar
 | `activeCount` / `upcomingCount` / `offerCount` | 「进展」一行三个数字 | 分别应用 `.active` / `.upcoming` / `.offer` 筛选 |
 | `recentApplications` | 「最近更新」5 行 | 点行 → 申请详情 |
 
-来源：NextStep/Features/Overview/OverviewView.swift:140-266；跨 tab 路由的约定见 docs/design/presentation.md:24-32。
+来源：NextStep/Features/Overview/DashboardView.swift:58-186；跨 tab 路由的约定见 docs/design/presentation.md:24-32。
 
-`applications.isEmpty` 时整块看板换成英雄区空态；申请不为空但 `hasEvents == false` 时，只把议程换成一句「接下来 7 天没有节点」（来源：OverviewView.swift:27-34, 141-163）。
+`applications.isEmpty` 时整块看板换成英雄区空态（判断留在页面，`DashboardView` 不会收到空数据的快照）；申请不为空但 `hasEvents == false` 时，只把议程换成一句「接下来 7 天没有节点」（来源：NextStep/Features/Overview/OverviewView.swift:28-33；NextStep/Features/Overview/DashboardView.swift:62-84）。
+
+这个边界能在 `#Preview` 里看见：`DashboardView` 的预览用内存容器提供环境，手写一份快照（今天一个节点、后天一个节点、一个已过、一个 offer、一个没有节点的想投），不经过 `@Query`（来源：NextStep/Features/Overview/DashboardView.swift:207-304）。
 
 ## 测试锁住的不变量
 
@@ -105,3 +111,4 @@ DashboardSnapshot  ──► OverviewView ──► DashboardEventRow / Dashboar
 - 生命周期与状态机：[application-lifecycle.md](application-lifecycle.md)
 - 页面形态与路由：[presentation.md](presentation.md)
 - 决策依据：[ADR 0005 deadline 即下一个节点](../adr/0005-deadline-is-the-next-node.md)、[ADR 0004 表现层边界](../adr/0004-presentation-boundaries.md)
+- 看板模块与预览夹具：[DashboardView.swift](../../NextStep/Features/Overview/DashboardView.swift)

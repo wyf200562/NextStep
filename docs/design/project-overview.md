@@ -127,7 +127,7 @@ JobSource（Remotive / 手动粘贴 / 未来 URL）
 
 - `AppContainer` 是唯一的组合根，持有 `ModelContainer`、三个仓库、`JobSourceFactory`、`RefreshLedger`、`MatchService` 与 `AppRouter`；容器创建失败时启动页显示阻塞式中文错误页并可重试（来源：NextStep/App/AppContainer.swift:12；NextStep/App/AppRootView.swift）。
 - `AppRouter` 不是 ViewModel，只持有 `selectedTab` 和最多一个 `pendingRoute`，每个 tab 自己的 `NavigationStack` 路径仍由 View 持有（来源：NextStep/App/AppRouter.swift:6-18）。
-- 概览与申请列表直接用 `@Query` 加纯函数派生，不配 ViewModel（来源：NextStep/Features/Overview/OverviewView.swift:13；NextStep/Features/Applications/ApplicationsView.swift:8）。
+- 概览与申请列表直接用 `@Query` 加纯函数派生，不配 ViewModel（来源：NextStep/Features/Overview/OverviewView.swift:14；NextStep/Features/Applications/ApplicationsView.swift:8）。
 - 有异步加载、表单或多步操作的页面使用 `@Observable @MainActor` ViewModel；ViewModel 不持有 `ModelContext`（来源：docs/adr/0004-presentation-boundaries.md；docs/design/architecture.md）。
 - 状态历史是唯一 UIKit 页面，使用 `UIViewController` + `UITableViewDiffableDataSource`，无 ViewModel（来源：docs/adr/0004-presentation-boundaries.md；NextStep/Features/StatusHistory/StatusHistoryViewController.swift:11）。
 

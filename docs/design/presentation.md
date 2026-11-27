@@ -8,7 +8,7 @@ v1 的界面目标是「行动优先、解释清楚、不把用户当新手」�
 
 | 页面 | 形态 | 原因 |
 |---|---|---|
-| 概览 | `@Query` + 纯 `DashboardBuilder` | 只读派生，无异步写操作 |
+| 概览 | `@Query` + 纯 `DashboardBuilder`，看板由 `DashboardView(snapshot:)` 渲染 | 只读派生，无异步写操作 |
 | 申请列表 | `@Query` + `@State` 筛选 + 纯 `ApplicationListBuilder` | 只读列表 |
 | 申请详情 | `ApplicationDetailViewModel` | 状态流转、轮次、错误处理 |
 | 申请新建/编辑 | `ApplicationEditorViewModel` | 表单校验、多步保存 |
