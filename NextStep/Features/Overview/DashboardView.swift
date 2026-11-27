@@ -4,12 +4,12 @@ import UIKit
 /// The overview board: the overdue notice, the agenda (today and the next seven days), the progress
 /// counts, and the most recently updated applications.
 ///
-/// The only input is a derived `DashboardSnapshot`. There is no `@Query` here, so the board renders
-/// from a known snapshot without a store full of data — which is what its `#Preview` does. Whether
-/// there is any application at all is the page's question, not the board's; `OverviewView` keeps
-/// that switch and the empty state.
-/// Actions stay router calls read from the environment, the same way every read-only page works
-/// (ADR-0004: no ViewModel).
+/// Its only data input is a derived `DashboardSnapshot` — there is no `@Query` here, so the board
+/// renders from a known snapshot without a store full of data, which is what its `#Preview` does.
+/// Whether there is any application at all is the page's question, not the board's; `OverviewView`
+/// keeps that switch and the empty state.
+/// Routing and the clock still come from the environment, so every action stays a router call and
+/// no ViewModel appears (ADR-0004).
 struct DashboardView: View {
     @Environment(AppContainer.self) private var container
 
@@ -206,70 +206,84 @@ struct DashboardView: View {
 
 // MARK: - Preview
 
-/// The board's preview fixture: five applications and the snapshot they derive to, at a fixed
-/// instant. Built through `DashboardBuilder` rather than hand-assembled, so the preview can never
-/// show a snapshot the app could not produce.
-@MainActor
+/// The board's preview fixture, written by hand: five applications, the snapshot that renders them,
+/// and an in-memory container for the router and the clock. Hand-built rather than derived, so the
+/// preview shows what the board does with given values — and does not move when derivation changes.
 private func dashboardPreviewFixture() -> (snapshot: DashboardSnapshot, container: AppContainer) {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
-    let now = calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 10))!
+    func instant(day: Int, hour: Int) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour))!
+    }
 
     // 今天 14:00 一面 · 后天 09:00 二面 · 昨天已过 · 一个 offer · 一个没有节点的想投
     let today = Application(
         companyName: "字节跳动",
         roleTitle: "iOS 工程师",
         status: .applied,
-        createdAt: now,
-        deadline: calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 14))!
+        createdAt: instant(day: 9, hour: 8),
+        deadline: instant(day: 9, hour: 14)
     )
     let later = Application(
         companyName: "小红书",
         roleTitle: "客户端开发",
         status: .interview,
-        createdAt: now,
-        deadline: calendar.date(from: DateComponents(year: 2026, month: 11, day: 11, hour: 9))!
+        createdAt: instant(day: 9, hour: 8),
+        deadline: instant(day: 11, hour: 9)
     )
     let overdue = Application(
         companyName: "蔚来",
         roleTitle: "iOS 工程师",
         status: .applied,
-        createdAt: now,
-        deadline: calendar.date(from: DateComponents(year: 2026, month: 11, day: 8, hour: 9))!
+        createdAt: instant(day: 9, hour: 8),
+        deadline: instant(day: 8, hour: 9)
     )
     let offer = Application(
         companyName: "美团",
         roleTitle: "客户端开发",
         status: .offer,
-        createdAt: now
+        createdAt: instant(day: 9, hour: 8)
     )
     let wishlist = Application(
         companyName: "拼多多",
         roleTitle: "iOS 工程师",
         status: .wishlist,
-        createdAt: now
+        createdAt: instant(day: 9, hour: 8)
     )
 
-    // A round on the deadline instant names the node, the same way the app does it.
+    // A round on the node's instant names it, the same way the app does it.
     today.interviewRounds = [InterviewRound(
-        scheduledAt: today.deadline!,
+        scheduledAt: instant(day: 9, hour: 14),
         format: .video,
         label: "一面"
     )]
     later.interviewRounds = [InterviewRound(
-        scheduledAt: later.deadline!,
+        scheduledAt: instant(day: 11, hour: 9),
         format: .onsite,
         label: "二面"
     )]
 
-    let applications = [today, later, overdue, offer, wishlist]
-    let container = try! AppContainer.makeInMemory(
-        dateProvider: FixedDateProvider(now: now, calendar: calendar)
+    let snapshot = DashboardSnapshot(
+        todayEvents: [DashboardEvent(
+            id: "deadline-\(today.id.uuidString)",
+            application: today,
+            date: instant(day: 9, hour: 14)
+        )],
+        upcomingEvents: [DashboardEvent(
+            id: "deadline-\(later.id.uuidString)",
+            application: later,
+            date: instant(day: 11, hour: 9)
+        )],
+        // 进行中 = 已投两个 + 面试一个 + 想投一个；offer 不计入 active。议程两条；已过一条。
+        activeCount: 4,
+        upcomingCount: 2,
+        overdueCount: 1,
+        offerCount: 1,
+        recentApplications: [today, later, overdue, offer, wishlist]
     )
-    let snapshot = DashboardBuilder.snapshot(
-        applications: applications,
-        now: now,
-        calendar: calendar
+
+    let container = try! AppContainer.makeInMemory(
+        dateProvider: FixedDateProvider(now: instant(day: 9, hour: 10), calendar: calendar)
     )
     return (snapshot, container)
 }
@@ -277,6 +291,8 @@ private func dashboardPreviewFixture() -> (snapshot: DashboardSnapshot, containe
 #Preview("看板 · 有节点") {
     let fixture = dashboardPreviewFixture()
 
+    // Same chrome as `OverviewView` (horizontal 20, top 8, bottom 28, grouped background), so the
+    // preview shows the spacing the page actually ships.
     ScrollView {
         DashboardView(snapshot: fixture.snapshot)
             .padding(.horizontal, 20)
