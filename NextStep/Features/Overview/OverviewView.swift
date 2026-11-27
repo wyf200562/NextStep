@@ -6,7 +6,8 @@ import UIKit
 ///
 /// `@Query` fetches applications; the pure `DashboardBuilder` derives today's and the next seven
 /// days' nodes, the progress counts, the overdue count, and the five most recently updated
-/// applications.
+/// applications. The board itself is `DashboardView`, which takes that snapshot as its only input;
+/// this page owns the data source, the chrome, and the empty state.
 /// No ViewModel lives here — every action is a router call or the shared editor sheet.
 struct OverviewView: View {
     @Environment(AppContainer.self) private var container
@@ -27,10 +28,7 @@ struct OverviewView: View {
                 if applications.isEmpty {
                     emptyState
                 } else {
-                    overdueNotice(snapshot.overdueCount)
-                    events(snapshot)
-                    progressCounts(snapshot)
-                    recentUpdates(snapshot)
+                    DashboardView(snapshot: snapshot)
                 }
             }
             .padding(.horizontal, 20)
@@ -102,184 +100,5 @@ struct OverviewView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 32)
-    }
-
-    // MARK: - Overdue notice
-
-    /// One row above the agenda: past nodes leave the agenda, so their count lives here instead.
-    /// Hidden when nothing is overdue.
-    @ViewBuilder
-    private func overdueNotice(_ count: Int) -> some View {
-        if count > 0 {
-            Button {
-                container.router.openApplications(filter: .all)
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "clock.badge.exclamationmark")
-                        .font(.subheadline)
-                        .foregroundStyle(Color.orange)
-                    Text("\(count) 个申请的节点已过，去更新")
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
-                    Spacer(minLength: 6)
-                    Image(systemName: "chevron.right")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(cardBackground)
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("打开全部申请")
-        }
-    }
-
-    // MARK: - Events
-
-    @ViewBuilder
-    private func events(_ snapshot: DashboardSnapshot) -> some View {
-        if snapshot.hasEvents {
-            if !snapshot.todayEvents.isEmpty {
-                section("今天") {
-                    eventCard(snapshot.todayEvents)
-                }
-            }
-            if !snapshot.upcomingEvents.isEmpty {
-                section("接下来 7 天") {
-                    eventCard(snapshot.upcomingEvents)
-                }
-            }
-        } else {
-            section("接下来 7 天") {
-                Text("接下来 7 天没有节点。去 Discover 看看新岗位。")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
-                    .background(cardBackground)
-            }
-        }
-    }
-
-    private func eventCard(_ events: [DashboardEvent]) -> some View {
-        VStack(spacing: 0) {
-            ForEach(events.indices, id: \.self) { index in
-                let event = events[index]
-                Button {
-                    container.router.openApplication(event.applicationID)
-                } label: {
-                    DashboardEventRow(
-                        event: event,
-                        now: container.dateProvider.now,
-                        calendar: container.dateProvider.calendar
-                    )
-                }
-                .buttonStyle(.plain)
-
-                if index < events.count - 1 {
-                    Divider().padding(.leading, 14)
-                }
-            }
-        }
-        .background(cardBackground)
-    }
-
-    // MARK: - Progress counts
-
-    private func progressCounts(_ snapshot: DashboardSnapshot) -> some View {
-        section("进展") {
-            HStack(spacing: 8) {
-                countButton(snapshot.activeCount, label: "进行中", filter: .active, highlightsValue: false)
-                countButton(
-                    snapshot.upcomingCount,
-                    label: "接下来 7 天",
-                    filter: .upcoming,
-                    highlightsValue: snapshot.upcomingCount > 0
-                )
-                countButton(snapshot.offerCount, label: "Offer", filter: .offer, highlightsValue: false)
-            }
-        }
-    }
-
-    private func countButton(
-        _ value: Int,
-        label: String,
-        filter: ApplicationListFilter,
-        highlightsValue: Bool
-    ) -> some View {
-        Button {
-            container.router.openApplications(filter: filter)
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(value)")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(highlightsValue ? Color.orange : Color.primary)
-                Text(label)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
-            .background(cardBackground)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(label)：\(value)")
-        .accessibilityHint("打开\(filter.displayName)筛选")
-    }
-
-    // MARK: - Recent updates
-
-    private func recentUpdates(_ snapshot: DashboardSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("最近更新")
-                    .font(.headline)
-                Spacer()
-                Button("查看全部") {
-                    container.router.openApplications(filter: .all)
-                }
-                .font(.subheadline)
-            }
-
-            VStack(spacing: 0) {
-                ForEach(snapshot.recentApplications.indices, id: \.self) { index in
-                    let application = snapshot.recentApplications[index]
-                    Button {
-                        container.router.openApplication(application.id)
-                    } label: {
-                        DashboardRecentRow(application: application)
-                    }
-                    .buttonStyle(.plain)
-
-                    if index < snapshot.recentApplications.count - 1 {
-                        Divider().padding(.leading, 14)
-                    }
-                }
-            }
-            .background(cardBackground)
-        }
-    }
-
-    // MARK: - Pieces
-
-    private func section<Content: View>(
-        _ title: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.headline)
-            content()
-        }
-    }
-
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .fill(Color(uiColor: .secondarySystemGroupedBackground))
     }
 }
